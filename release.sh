@@ -34,6 +34,7 @@ OrangeFox R12.0_1 for Google Pixel 4a (5G), bramble. Installed to vendor_boot.
 of one LineageOS build. Do not flash it after a LineageOS update until \`patch-check.ps1\`
 reports a match for the new build; a module mismatch can stop Android from booting.
 A LineageOS OTA replaces vendor_boot, so OrangeFox has to be installed again afterwards.
+Other ROMs need a rebuild of this tree with their own images; see "Other ROMs" in README.md.
 
 - \`.img\`: \`fastboot flash vendor_boot_a <img>\` (use the active slot), then select
   Recovery mode in the bootloader menu

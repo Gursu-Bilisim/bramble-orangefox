@@ -83,6 +83,28 @@ Take `Image.lz4` and the DTB from the new `boot.img`, `dtbo.img`, and `first_sta
 fails with keymaster error -38; a higher one may upgrade the metadata key so that the ROM can no
 longer unlock `/data`.
 
+## Other ROMs
+
+A released image is built for one LineageOS build. It carries that build's kernel modules and
+reports its security patch, so it is not a general Pixel 4a (5G) recovery:
+
+- On a ROM with a different kernel the modules do not load, and because `vendor_boot` is also
+  used for the Android boot, Android may not start either. `patch-check.ps1` prints the module
+  version next to the ROM kernel; flash only when it reports a match.
+- If the ROM's security patch differs, keymaster refuses the metadata key (lower patch) or
+  upgrades it (higher patch).
+
+Supporting another ROM means rebuilding this tree with that ROM's images, as described in
+"Updating for a new LineageOS build". The decryption chain uses the QTI keymaster 4.0, gatekeeper
+and Titan M files from the vendor image with fingerprint
+`google/bramble/bramble:14/UP1A.231105.001.B2`. A ROM that ships the same vendor image and the
+same encryption settings (FBE v2 with metadata encryption) needs only the kernel, modules, DTB,
+dtbo and patch values replaced. A ROM with a different vendor image may need the files in
+`recovery/root` replaced as well; `recovery-inspect.ps1` lists them.
+
+If you build and test this tree on another ROM, please open an issue with the ROM name and
+build, the `patch-check.ps1` output and `/tmp/recovery.log`.
+
 ## Tools
 
 ### patch-check.ps1
