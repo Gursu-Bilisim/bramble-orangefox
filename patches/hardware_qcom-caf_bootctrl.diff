@@ -1,0 +1,26 @@
+diff --git a/1.1/libboot_control_qti/libboot_control_qti.cpp b/1.1/libboot_control_qti/libboot_control_qti.cpp
+index f7f90db..8c61e81 100644
+--- a/1.1/libboot_control_qti/libboot_control_qti.cpp
++++ b/1.1/libboot_control_qti/libboot_control_qti.cpp
+@@ -52,7 +52,7 @@
+ #include <libboot_control/libboot_control.h>
+ 
+ #define BOOTDEV_DIR "/dev/block/bootdevice/by-name"
+-#define BOOT_IMG_PTN_NAME "boot"
++#define BOOT_IMG_PTN_NAME "boot_"
+ #define LUN_NAME_END_LOC 14
+ #define BOOT_SLOT_PROP "ro.boot.slot_suffix"
+ #define BOARD_PLATFORM_PROP  "ro.build.product"
+diff --git a/boot_control.cpp b/boot_control.cpp
+index 899b6e2..f2a3912 100644
+--- a/boot_control.cpp
++++ b/boot_control.cpp
+@@ -49,7 +49,7 @@ extern "C" {
+ #include "gpt-utils.h"
+ 
+ #define BOOTDEV_DIR "/dev/block/bootdevice/by-name"
+-#define BOOT_IMG_PTN_NAME "boot"
++#define BOOT_IMG_PTN_NAME "boot_"
+ #define LUN_NAME_END_LOC 14
+ #define BOOT_SLOT_PROP "ro.boot.slot_suffix"
+ 

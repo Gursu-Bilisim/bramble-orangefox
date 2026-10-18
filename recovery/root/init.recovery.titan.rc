@@ -1,0 +1,39 @@
+# Titan M (citadel) decryption chain: vndservicemanager, citadeld, weaver.
+# The LineageOS 23.2 vendor libraries need Android 16 bionic (LIBC_U) and libbinder_ndk
+# (LIBBINDER_NDK36), which TWRP 12.1 does not have. These three services run with the
+# Android 16 linker (/system/bin/linker64_a16, from the LineageOS first_stage_ramdisk) and
+# the Android 16 libraries under /system/lib64/a16.
+# init_citadel is a firmware update script; it is not run in recovery.
+
+on init
+    # vndservicemanager checks vndservice types that are not in the TWRP sepolicy.
+    # This file is read only in recovery; it does not affect the normal Android boot.
+    write /sys/fs/selinux/enforce 0
+    start vndservicemanager
+
+on property:hwservicemanager.ready=true
+    start vendor.citadeld
+
+on property:init.svc.vendor.citadeld=running
+    start vendor.weaver_hal
+
+service vndservicemanager /system/bin/linker64_a16 /system/bin/vndservicemanager /dev/vndbinder
+    user root
+    group root
+    setenv LD_LIBRARY_PATH /vendor/lib64:/system/lib64/a16
+    disabled
+    seclabel u:r:recovery:s0
+
+service vendor.citadeld /system/bin/linker64_a16 /system/bin/citadeld
+    user root
+    group root
+    setenv LD_LIBRARY_PATH /vendor/lib64:/system/lib64/a16
+    disabled
+    seclabel u:r:recovery:s0
+
+service vendor.weaver_hal /system/bin/linker64_a16 /system/bin/android.hardware.weaver@1.0-service.citadel
+    user root
+    group root
+    setenv LD_LIBRARY_PATH /vendor/lib64:/vendor/lib64/hw:/system/lib64/a16
+    disabled
+    seclabel u:r:recovery:s0

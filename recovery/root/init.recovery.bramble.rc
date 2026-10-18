@@ -1,0 +1,38 @@
+# QTI side (qseecomd, keymaster-4-0-qti, gatekeeper): twrp-common
+import /init.recovery.qcom_decrypt.rc
+# Titan M side (vndservicemanager, citadeld, weaver): this tree
+import /init.recovery.titan.rc
+
+on early-init
+    # Lineage init.recovery.bramble.rc
+    wait /sys/class/drm/card0
+
+on init
+    wait /sys/devices/platform/soc/a600000.ssusb/a600000.dwc3/driver 10
+    setprop sys.usb.controller a600000.dwc3
+    setprop sys.usb.configfs 1
+    setprop prepdecrypt.setpatch false
+    mkdir /tmp/misc 0700 root root
+    mkdir /tmp/misc/keystore 0700 root root
+    write /sys/module/msm_poweroff/parameters/warm_reset 1
+    write /sys/devices/virtual/thermal/tz-by-name/backup-charge/mode enabled
+
+on fs
+    wait /dev/block/platform/soc/1d84000.ufshc
+    symlink /dev/block/platform/soc/1d84000.ufshc /dev/block/bootdevice
+    # The qseecomd/keymaster TA files are on the modem partition; modem is slotted (fstab.sm7250: slotselect).
+    # No context= option: the TWRP sepolicy does not know the firmware_file type (mount EINVAL).
+    mkdir /vendor/firmware_mnt 0771 root root
+    mount vfat /dev/block/platform/soc/1d84000.ufshc/by-name/modem${ro.boot.slot_suffix} /vendor/firmware_mnt ro shortname=lower,uid=0,gid=1000,dmask=227,fmask=337
+
+# Boot control HAL: TWRP's android.hardware.boot@1.2-service.rc puts /vendor/lib64 into
+# LD_LIBRARY_PATH; the service then loads the Android 16 vendor libhidlbase, which does not
+# look for the implementation under /system/lib64/hw. This definition is read first, so it wins.
+service boot-hal-1-2 /system/bin/android.hardware.boot@1.2-service
+    interface android.hardware.boot@1.0::IBootControl default
+    interface android.hardware.boot@1.1::IBootControl default
+    interface android.hardware.boot@1.2::IBootControl default
+    user root
+    group root
+    disabled
+    seclabel u:r:recovery:s0

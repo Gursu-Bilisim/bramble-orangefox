@@ -1,0 +1,13 @@
+//
+// Copyright (C) 2018 The Android Open Source Project
+// SPDX-License-Identifier: Apache-2.0
+//
+// HIDL boot control 1.2 (QTI), built with the defaults of hardware/qcom-caf/bootctrl (LineageOS lineage-19.1-caf).
+// stem: the HIDL passthrough loader looks for the name android.hardware.boot@1.0-impl*.
+
+cc_library_shared {
+    name: "android.hardware.boot@1.2-impl-qti",
+    stem: "android.hardware.boot@1.0-impl-1.2-qti",
+    defaults: ["android.hardware.boot@1.2-impl-qti_defaults"],
+    static_libs: ["libgptutils-sg.bramble"],
+}

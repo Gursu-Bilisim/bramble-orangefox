@@ -1,0 +1,5 @@
+PRODUCT_MAKEFILES := \
+    $(LOCAL_DIR)/twrp_bramble.mk
+
+COMMON_LUNCH_CHOICES := \
+    twrp_bramble-eng

@@ -1,0 +1,14 @@
+bootable_recovery.diff
+repository: https://gitlab.com/OrangeFox/bootable/Recovery.git
+commit:     cbcc4f713dbef98d76d6d2cfd019b1ebfd9418e9
+date:       Sun Sep 20 16:19:29 2026 +0100
+subject:    Turn warning into error
+branch:     fox_12.1
+path:       bootable/recovery
+
+hardware_qcom-caf_bootctrl.diff
+repository: https://github.com/LineageOS/android_hardware_qcom_bootctrl
+commit:     9ed7376299a15399624ebff4fcf8b8a162cd6c34
+subject:    Add .gitupstream file
+branch:     lineage-19.1-caf
+path:       hardware/qcom-caf/bootctrl

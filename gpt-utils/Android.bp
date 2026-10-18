@@ -1,0 +1,25 @@
+//
+// Copyright (C) 2022 The Android Open Source Project
+// SPDX-License-Identifier: Apache-2.0
+//
+// Source: pjgowtham/recovery_device_generic_marmalade (android-12.1), gpt-utils.
+// The bramble kernel (4.19) has no ufs-bsg; the LineageOS boot HAL switches the boot LUN
+// through /sys/block/sdX/device/scsi_generic -> /dev/sgY, hence the -sg variant.
+
+cc_library_static {
+    name: "libgptutils-sg.bramble",
+    export_include_dirs: ["."],
+    // scsi/ufs/{ioctl,ufs}.h: LineageOS/android_kernel_google_redbull lineage-23.2 include/uapi
+    local_include_dirs: ["include"],
+    recovery_available: true,
+    vendor: true,
+    shared_libs: [
+        "libcutils",
+        "liblog",
+        "libz",
+    ],
+    srcs: [
+        "gpt-utils.cpp",
+        "recovery-ufs-bsg.cpp",
+    ],
+}

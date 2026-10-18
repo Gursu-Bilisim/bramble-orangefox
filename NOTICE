@@ -1,0 +1,88 @@
+bramble-orangefox
+Copyright 2026 kgursu (Gursu-Bilisim)
+
+Files written for this repository are licensed under the Apache License,
+Version 2.0 (see LICENSE). This includes the build configuration
+(Android.bp, AndroidProducts.mk, BoardConfig.mk, device.mk, twrp_bramble.mk,
+vendorsetup.sh, bootctrl/Android.bp), recovery/root/init.recovery.bramble.rc
+(except the parts taken from LineageOS, see below),
+recovery/root/init.recovery.titan.rc, recovery/root/system/etc/vintf/manifest.xml,
+recovery/root/vendor/etc/vintf/manifest.xml, patch-check.ps1,
+recovery-inspect.ps1, release.sh and test-notes.md.
+
+This repository builds on the work of others. Their parts keep their own
+authors and licenses:
+
+* recovery.fstab, parts of recovery/root/init.recovery.bramble.rc
+  Based on LineageOS android_device_google_redbull and
+  android_device_google_bramble, branch lineage-23.2, and on the recovery files
+  of the LineageOS 23.2 bramble build. Apache License 2.0.
+  https://github.com/LineageOS/android_device_google_redbull
+  https://github.com/LineageOS/android_device_google_bramble
+
+* QCOM decryption scripts (used at build time, not copied here)
+  TeamWin android_device_qcom_twrp-common, branch android-12.1
+  https://github.com/TeamWin/android_device_qcom_twrp-common
+  Copyright (C) 2020 Captain_Throwback, Apache License 2.0
+
+* recovery/root/init.recovery.usb.rc
+  Taken from Gursu-Bilisim/tucana-orangefox, which is based on TeamWin
+  android_device_asus_sm8350-common, branch android-12.1.
+  Copyright (c) 2011-2016, The Linux Foundation. BSD 3-Clause license.
+
+* gpt-utils/gpt-utils.cpp, gpt-utils/gpt-utils.h,
+  gpt-utils/recovery-ufs-bsg.cpp, gpt-utils/recovery-ufs-bsg.h
+  From pjgowtham/recovery_device_generic_marmalade, branch android-12.1
+  https://github.com/pjgowtham/recovery_device_generic_marmalade
+  Copyright (c) 2013,2016,2020 The Linux Foundation. BSD 3-Clause license;
+  the original notices are kept in the files.
+
+* gpt-utils/include/scsi/ufs/ioctl.h, gpt-utils/include/scsi/ufs/ufs.h
+  From LineageOS android_kernel_google_redbull, branch lineage-23.2,
+  include/uapi/scsi/ufs. GPL-2.0-only WITH Linux-syscall-note.
+  https://github.com/LineageOS/android_kernel_google_redbull
+
+* Boot control HAL (built from source, not copied here)
+  LineageOS android_hardware_qcom_bootctrl, branch lineage-19.1-caf.
+  Copyright (c) 2016,2020, The Linux Foundation. BSD 3-Clause license.
+  Our change is in patches/hardware_qcom-caf_bootctrl.diff.
+  https://github.com/LineageOS/android_hardware_qcom_bootctrl
+
+* prebuilt/Image.lz4, prebuilt/dtb/bramble.dtb, prebuilt/dtbo.img,
+  prebuilt/vendor_ramdisk/lib/modules/*
+  Taken from the LineageOS 23.2 bramble boot, vendor_boot and dtbo images
+  (lineage-23.2-20261003-NIGHTLY-bramble, Linux
+  4.19.325-cip136-st20-g2af5306961ae). GPL-2.0.
+  Source: https://github.com/LineageOS/android_kernel_google_redbull
+
+* prebuilt/vendor_ramdisk/first_stage_ramdisk/*,
+  recovery/root/system/bin/linker64_a16, recovery/root/system/lib64/a16/*,
+  recovery/root/vendor/lib64/libapexsupport.so
+  Android Open Source Project components (bionic, e2fsprogs, f2fs-tools,
+  libbinder_ndk, libselinux and others) from the LineageOS 23.2 bramble build,
+  and libdl_android.so from a TWRP 12.1 build. Each keeps its upstream license
+  (mostly Apache License 2.0 and BSD licenses; e2fsprogs parts under GPL/LGPL).
+
+* recovery/root/system/bin/qseecomd,
+  recovery/root/system/bin/android.hardware.keymaster@4.0-service-qti,
+  recovery/root/system/bin/android.hardware.gatekeeper@1.0-service-qti,
+  recovery/root/system/bin/citadeld,
+  recovery/root/system/bin/android.hardware.weaver@1.0-service.citadel,
+  recovery/root/system/bin/vndservicemanager,
+  recovery/root/vendor/lib64/* (except libapexsupport.so),
+  recovery/root/vendor/etc/selinux/vndservice_contexts,
+  recovery/root/vendor/firmware/ftm5_fw.ftb
+  Proprietary Google, Qualcomm and STMicroelectronics vendor files, taken
+  unmodified from the vendor image of the LineageOS 23.2 bramble build
+  (vendor fingerprint google/bramble/bramble:14/UP1A.231105.001.B2) so that the
+  recovery can reach the keymaster, Titan M and the touch panel. They are not
+  covered by this repository's license; all rights remain with their owners.
+
+* Reference only (no files copied)
+  JoshuaDoes twrp_device_google_bramble and twrp_device_google_redbull,
+  branch android-11, consulted for TWRP build flags.
+
+* OrangeFox Recovery / TWRP
+  The recovery is built from OrangeFox fox_12.1 (based on TWRP), licensed
+  under GPL-3.0-or-later. Our changes to it are published in patches/ under
+  the same license.

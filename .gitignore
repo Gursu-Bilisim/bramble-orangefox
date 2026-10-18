@@ -1,0 +1,6 @@
+# The stock vendor_boot of your LineageOS build (96 MiB); see README.md
+prebuilt/stock_vendor_boot.img
+# Local notes and dumps used while porting
+reference/
+*.pre-*
+*.bak*
