@@ -12,6 +12,8 @@ its own `TEST-NOTES.md`.
 - Decryption of FBE v2 with metadata encryption: QTI keymaster 4.0 and gatekeeper through
   `qseecomd`, keystore2, and the lock screen credential through Titan M (Weaver)
 - ADB, MTP, battery indicator, slot selection (QTI boot control 1.2)
+- Backups: Boot, Data, Super, Vendor Boot and DTBO can be selected; a Data backup to an exFAT
+  SD card on USB-OTG (shown as Storage 1) was tested
 - Normal Android boot from the same `vendor_boot`
 
 ## Read this before flashing
@@ -34,6 +36,7 @@ carries the kernel modules of one LineageOS build (`lib/modules`, 221 modules). 
    `adb shell dd if=/dev/block/by-name/vendor_boot_a of=/sdcard/vendor_boot_a.img`
    (use your active slot).
 2. Check the image: `patch-check.ps1 -BootImg <ROM boot.img> -RecoveryImg <OrangeFox .img>`.
+   Flash it only if `RESULT` is a match and no `DECRYPT` line appears.
 3. `fastboot flash vendor_boot_a <OrangeFox .img>` for the active slot, or install the `.zip` from a
    running OrangeFox (it writes `vendor_boot_a` and `vendor_boot_b`).
 4. The bootloader does not accept `fastboot reboot recovery`; choose Recovery mode in the
@@ -123,27 +126,44 @@ build, the `patch-check.ps1` output and `/tmp/recovery.log`.
 
 ### patch-check.ps1
 
-Checks whether a recovery image fits a ROM build before you flash it. For a `vendor_boot` image
-the verdict comes from the kernel modules: their version must match the ROM kernel. The Android
-version and security patch from the ramdisk's `prop.default` are shown as a note. For a
-`recovery.img` the verdict comes from the image header.
-Works in Windows PowerShell 5.1 and PowerShell 7. A/B OTA packages (`payload.bin`) need
-[payload-dumper-go](https://github.com/ssut/payload-dumper-go) or the `payload_dumper` bundled with
-Multi Image Kitchen.
+Checks whether a recovery image fits a ROM build before you flash it. `-RecoveryImg` takes the
+OrangeFox `.img` or `.zip`. For a `vendor_boot` image the script prints up to three verdicts:
+
+- `RESULT`: the version of the kernel modules in the image against the ROM kernel. Flash only on
+  a match; with other modules Android may not start.
+- `DECRYPT`: printed when the image and the ROM report different security patch levels. With a
+  lower level keymaster refuses the metadata key and `/data` stays encrypted; on this device it
+  returned -62 and then -38, and the key was not changed. With a higher level keymaster can
+  upgrade the key, and the ROM can then no longer unlock `/data`.
+- `ROM INSTALL` (with `-Zip`): whether the ROM package writes `vendor_boot`, read from the
+  `payload.bin` manifest. The LineageOS Updater and OrangeFox both install the package to the
+  inactive slot, and this OrangeFox build does not write itself back afterwards
+  (`OF_NO_REFLASH_CURRENT_ORANGEFOX` is set for header v3 `vendor_boot` builds), so a package
+  that carries `vendor_boot` leaves the new slot with the ROM's own image.
+
+For a `recovery.img` the verdict comes from the image header.
+Works in Windows PowerShell 5.1 and PowerShell 7. Extracting `boot.img` from an A/B package
+(`payload.bin`) needs [payload-dumper-go](https://github.com/ssut/payload-dumper-go) or the
+`payload_dumper` bundled with Multi Image Kitchen.
 
 ```
-powershell -ExecutionPolicy Bypass -File patch-check.ps1 -BootImg <boot.img> -RecoveryImg <OrangeFox .img>
-powershell -ExecutionPolicy Bypass -File patch-check.ps1 -Zip <ota.zip> -RecoveryImg <OrangeFox .img>
+powershell -ExecutionPolicy Bypass -File patch-check.ps1 -BootImg <boot.img> -RecoveryImg <OrangeFox .img | .zip>
+powershell -ExecutionPolicy Bypass -File patch-check.ps1 -Zip <ota.zip> -RecoveryImg <OrangeFox .img | .zip>
 ```
 
-Example output:
+Example output (lineage-23.2-20261010 and the image built for it):
 
 ```
-Boot header    : Android 16.0.0, patch 2026-09 (header v3)
+OTA device     : bramble
+OTA metadata   : security patch 2026-10-01
+Boot header    : Android 16.0.0, patch 2026-10 (header v3)
 Boot kernel    : 4.19.325-cip136-st20-g2af5306961ae
-Recovery props : Android 16.0.0, patch 2026-09-01 (vendor_boot v3)
+OTA writes     : 21 partitions, including boot, dtbo, vendor_boot
+Recovery props : Android 16.0.0, patch 2026-10-01 (vendor_boot v3)
 Recovery kmods : 4.19.325-cip136-st20-g2af5306961ae
+Recovery device: bramble
 RESULT: match, the kernel modules fit this ROM kernel
+ROM INSTALL: Android starts. The package writes its own vendor_boot to the inactive slot, ...
 ```
 
 ### recovery-inspect.ps1

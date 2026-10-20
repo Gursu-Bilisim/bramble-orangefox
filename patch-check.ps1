@@ -28,6 +28,7 @@
 #   powershell -ExecutionPolicy Bypass -File patch-check.ps1 -Zip <ota.zip> [-RecoveryImg <recovery.img>]
 #   powershell -ExecutionPolicy Bypass -File patch-check.ps1 -BootImg <boot.img> [-RecoveryImg <recovery.img>]
 #   powershell -ExecutionPolicy Bypass -File patch-check.ps1 -RecoveryImg <recovery.img>
+# -RecoveryImg also accepts an OrangeFox installer zip; the image inside it is checked.
 # Optional: -PayloadTool <path to a payload tool .exe>
 #           -GoDumper <path to payload-dumper-go.exe>
 #           -MikDir <path to your Multi Image Kitchen folder>
@@ -517,6 +518,32 @@ function Read-ImgFile([string]$path) {
   return Read-ImgBytes ([IO.File]::ReadAllBytes($path))
 }
 
+# Bytes of a recovery image, or of the image inside an OrangeFox installer zip
+# (recovery.img, or the first .img entry with an ANDROID! or VNDRBOOT header).
+function Read-RecoveryBytes([string]$path) {
+  $full = (Resolve-Path $path).Path
+  $b = [IO.File]::ReadAllBytes($full)
+  if ($b.Length -lt 4 -or $b[0] -ne 0x50 -or $b[1] -ne 0x4B) { return ,$b }
+  $zf = [IO.Compression.ZipFile]::OpenRead($full)
+  try {
+    $entries = @($zf.Entries | Where-Object { $_.FullName -ieq 'recovery.img' }) + @($zf.Entries | Where-Object { $_.FullName -like '*.img' -and $_.FullName -ine 'recovery.img' })
+    foreach ($e in $entries) {
+      $ms = New-Object IO.MemoryStream
+      $s = $e.Open()
+      try { $s.CopyTo($ms) } finally { $s.Close() }
+      $d = $ms.ToArray()
+      if ($d.Length -ge 8) {
+        $magic = [Text.Encoding]::ASCII.GetString($d, 0, 8)
+        if ($magic -eq 'ANDROID!' -or $magic -eq 'VNDRBOOT') {
+          Write-Host "Recovery zip   : using $($e.FullName) from $(Split-Path $full -Leaf)"
+          return ,$d
+        }
+      }
+    }
+  } finally { $zf.Dispose() }
+  throw "No recovery image (ANDROID! or VNDRBOOT header) found in $full"
+}
+
 function Find-PayloadTool {
   if ($PayloadTool) {
     if (Test-Path $PayloadTool) { return (Resolve-Path $PayloadTool).Path }
@@ -553,7 +580,9 @@ function Select-WorkDir([long]$needBytes) {
   }
   $ans = Read-Host "Temporary folder (Enter = $default)"
   if ([string]::IsNullOrWhiteSpace($ans)) { $ans = $default }
-  return $ans.Trim('"')
+  $ans = $ans.Trim('"')
+  if ($ans -match '^[A-Za-z]:?$') { $ans = $ans.Substring(0, 1) + ':\tmp' }
+  return $ans
 }
 
 function Get-PayloadFile([string]$zipPath, [string]$tmp) {
@@ -644,7 +673,7 @@ function Get-BootFromPayload([string]$inputPath, [string]$zipPath) {
 }
 
 if (-not $Zip -and -not $BootImg) {
-  $rbytes = [IO.File]::ReadAllBytes((Resolve-Path $RecoveryImg).Path)
+  $rbytes = Read-RecoveryBytes $RecoveryImg
   $rinfo = Read-ImgBytes $rbytes
   $rdev = if ($rinfo.Kind -eq 'boot') { Get-RamdiskDevice $rbytes } else { $null }
   Write-Host "Recovery header: Android $($rinfo.OsVersion), patch $($rinfo.PatchLevel)"
@@ -716,7 +745,8 @@ if ($payloadParts) {
 }
 
 if ($RecoveryImg) {
-  $rec = Read-ImgFile (Resolve-Path $RecoveryImg).Path
+  $recBytes = Read-RecoveryBytes $RecoveryImg
+  $rec = Read-ImgBytes $recBytes
   $kernelProblem = $null
   if ($rec.Kind -eq 'vendor_boot') {
     Write-Host "Recovery props : Android $($rec.OsVersion), patch $($rec.PatchDate) (vendor_boot v$($rec.HeaderVersion))"
@@ -733,7 +763,7 @@ if ($RecoveryImg) {
   }
   $recDevice = $null
   if ($rec.Kind -eq 'boot') {
-    $recDevice = Get-RamdiskDevice ([IO.File]::ReadAllBytes((Resolve-Path $RecoveryImg).Path))
+    $recDevice = Get-RamdiskDevice $recBytes
   }
   elseif ($rec.Device) { $recDevice = $rec.Device }
   if ($recDevice) { Write-Host "Recovery device: $recDevice" }
