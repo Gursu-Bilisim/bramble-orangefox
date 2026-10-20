@@ -46,6 +46,42 @@ If `adb reboot` from a recovery that did not start completely brings you back to
 misc partition still holds the recovery command. Clear it from a shell in the recovery:
 `dd if=/dev/zero of=/dev/block/by-name/misc bs=2048 count=1`.
 
+## Updating LineageOS
+
+A LineageOS update is installed to the inactive slot and brings its own `vendor_boot`, so the new
+slot starts without OrangeFox. Before updating, run
+`patch-check.ps1 -Zip <new LineageOS zip> -RecoveryImg <OrangeFox .img | .zip>`: `ROM INSTALL`
+says whether the new slot starts, `RESULT` and `DECRYPT` say whether this OrangeFox fits the new
+build.
+
+- Nightly of the same version: the LineageOS Updater, or install the zip from OrangeFox.
+- New version, for example 23.2 to 24.0: the Updater does not install it. Install the zip from
+  OrangeFox, or with `adb sideload` from Lineage recovery as in the
+  [LineageOS upgrade guide](https://wiki.lineageos.org/devices/bramble/upgrade/). For the
+  sideload, flash the stock `vendor_boot` of the installed build to the running slot first; a
+  `vendor_boot` from the new version carries modules for the new kernel.
+
+Add-on packages (microG, Google Apps, other installer zips) have to be installed to the new slot:
+
+1. Install the LineageOS zip. OrangeFox prints `Flashing A/B zip to inactive slot`.
+2. Do not install the add-ons in the same session. They would be written to the slot that is still
+   running, and the new slot would start without them. OrangeFox says so at the end of the
+   install: `To flash additional zips, please reboot recovery to switch to the updated slot.`
+3. Reboot to recovery. The new slot starts Lineage recovery from its own `vendor_boot`. Choose
+   Apply update, then Apply from ADB, and run `adb sideload <add-on zip>` for each package.
+4. Reboot to system.
+
+Google Apps packages are built for one Android version, so a new LineageOS version needs a new
+package: for 24.0 (Android 17) the Android 17 package for arm64. The LineageOS guide asks for it
+before the first boot of the new version, and allows adding or removing Google Apps only with a
+factory reset. On the test device the microG
+installer was not carried over by an update from 23.2-20261003 to 23.2-20261010; it was installed
+after the first boot with `adb sideload` and works (`/product/priv-app/GmsCore`). For a new Android
+version, install it before the first boot.
+
+Install OrangeFox again once there is an image for the new build (`patch-check.ps1` reports a
+match and no `DECRYPT` line), with `fastboot flash vendor_boot_<new slot> <img>`.
+
 ## Building
 
 1. Sync OrangeFox `fox_12.1` (see the OrangeFox wiki) into `<OrangeFox source tree>`.
