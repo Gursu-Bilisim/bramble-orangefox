@@ -9,8 +9,10 @@
 #     newer headers keep the header version; they are read as header v0.
 #   - vendor_boot.img (header "VNDRBOOT", e.g. bramble): the kernel modules in the
 #     ramdisk are compared with the ROM kernel, because vendor_boot is used for the
-#     normal Android boot as well; this comparison gives the verdict. Android version
-#     and patch level from prop.default in the ramdisk are shown as a note.
+#     normal Android boot as well; this comparison gives the verdict. The clang version
+#     of the modules is compared with the kernel banner too: the same release string
+#     built with another compiler is a rebuilt kernel. Android version and patch level
+#     from prop.default decide the DECRYPT line.
 #     With an A/B package (-Zip), the script also reads the payload.bin manifest and says
 #     what a ROM install leaves in vendor_boot (ROM INSTALL line): the LineageOS Updater
 #     and OrangeFox both write the package to the inactive slot.
@@ -138,6 +140,27 @@ public static class FoxUnpack3 {
       int e = s; while (e < k.Length && k[e] != (byte)' ' && k[e] != 0) e++;
       if (e + 1 < k.Length && k[e] == (byte)' ' && k[e + 1] == (byte)'(')
         return System.Text.Encoding.ASCII.GetString(k, s, e - s);
+    }
+    return null;
+  }
+  // Returns the clang version named in the kernel banner, or null.
+  public static string KernelCompiler(byte[] k) {
+    byte[] pat = System.Text.Encoding.ASCII.GetBytes("Linux version ");
+    byte[] cv = System.Text.Encoding.ASCII.GetBytes("clang version ");
+    for (int i = 0; i + pat.Length + 2 < k.Length; i++) {
+      int j = 0; while (j < pat.Length && k[i + j] == pat[j]) j++;
+      if (j < pat.Length) continue;
+      int s = i + pat.Length;
+      if (k[s] < (byte)'0' || k[s] > (byte)'9') continue;
+      int end = Math.Min(k.Length - cv.Length, s + 400);
+      for (int q = s; q < end; q++) {
+        int t = 0; while (t < cv.Length && k[q + t] == cv[t]) t++;
+        if (t < cv.Length) continue;
+        int a = q + cv.Length, b = a;
+        while (b < k.Length && ((k[b] >= (byte)'0' && k[b] <= (byte)'9') || k[b] == (byte)'.')) b++;
+        return b > a ? System.Text.Encoding.ASCII.GetString(k, a, b - a) : null;
+      }
+      return null;
     }
     return null;
   }
@@ -413,13 +436,18 @@ function Read-OsVersion([byte[]]$h) {
   }
 }
 
-function Get-BootKernelRelease([byte[]]$d) {
+# Release and compiler (clang version) from the kernel banner of a boot image.
+function Get-BootKernelInfo([byte[]]$d) {
+  $none = [pscustomobject]@{ Release = $null; Compiler = $null }
   $hv = [BitConverter]::ToUInt32($d, 40)
   if ($hv -gt 4) { $hv = 0 }
   $kSize = [BitConverter]::ToUInt32($d, 8)
   $page = if ($hv -ge 3) { 4096 } else { [BitConverter]::ToUInt32($d, 36) }
-  if ($kSize -eq 0 -or $page + $kSize -gt $d.Length) { return $null }
-  try { return [FoxUnpack3]::KernelRelease([FoxUnpack3]::Decompress($d, [int]$page, [int]$kSize)) } catch { return $null }
+  if ($kSize -eq 0 -or $page + $kSize -gt $d.Length) { return $none }
+  try {
+    $k = [FoxUnpack3]::Decompress($d, [int]$page, [int]$kSize)
+    return [pscustomobject]@{ Release = [FoxUnpack3]::KernelRelease($k); Compiler = [FoxUnpack3]::KernelCompiler($k) }
+  } catch { return $none }
 }
 
 function Read-VendorBoot([byte[]]$d) {
@@ -430,7 +458,7 @@ function Read-VendorBoot([byte[]]$d) {
   $hSize = [BitConverter]::ToUInt32($d, 2096)
   $rOff = [int]([math]::Ceiling($hSize / $page) * $page)
   $raw = [FoxUnpack3]::Decompress($d, $rOff, [int]$rSize)
-  $prop = $null; $vermagic = $null
+  $prop = $null; $vermagic = $null; $kmodCompiler = $null
   $p = 0
   while ($p -lt $raw.Length -and ($null -eq $prop -or $null -eq $vermagic)) {
     $hdr = [Text.Encoding]::ASCII.GetString($raw, $p, 110)
@@ -443,8 +471,11 @@ function Read-VendorBoot([byte[]]$d) {
     if ($name -eq 'TRAILER!!!') { break }
     if ($name -eq 'prop.default') { $prop = [Text.Encoding]::ASCII.GetString($raw, $p, $fsize) }
     elseif ($null -eq $vermagic -and $name -like 'lib/modules/*.ko') {
-      $m = [regex]::Match([Text.Encoding]::ASCII.GetString($raw, $p, $fsize), 'vermagic=([^\x00 ]+)')
+      $koText = [Text.Encoding]::ASCII.GetString($raw, $p, $fsize)
+      $m = [regex]::Match($koText, 'vermagic=([^\x00 ]+)')
       if ($m.Success) { $vermagic = $m.Groups[1].Value }
+      $c = [regex]::Match($koText, 'clang version ([0-9.]+)')
+      if ($c.Success) { $kmodCompiler = $c.Groups[1].Value }
     }
     $p = ($p + $fsize + 3) -band -bnot 3
   }
@@ -465,6 +496,7 @@ function Read-VendorBoot([byte[]]$d) {
     PatchLevel    = if ($spl.Length -ge 7) { $spl.Substring(0, 7) } else { $spl }
     PatchDate     = $spl
     Vermagic      = $vermagic
+    KmodCompiler  = $kmodCompiler
   }
 }
 
@@ -510,7 +542,9 @@ function Read-ImgBytes([byte[]]$d) {
   if ($magic -eq 'VNDRBOOT') { return Read-VendorBoot $d }
   $info = Read-OsVersion $d
   $info | Add-Member -NotePropertyName Kind -NotePropertyValue 'boot'
-  $info | Add-Member -NotePropertyName KernelRelease -NotePropertyValue (Get-BootKernelRelease $d)
+  $ki = Get-BootKernelInfo $d
+  $info | Add-Member -NotePropertyName KernelRelease -NotePropertyValue $ki.Release
+  $info | Add-Member -NotePropertyName KernelCompiler -NotePropertyValue $ki.Compiler
   return $info
 }
 
@@ -738,7 +772,7 @@ else {
 if ($metaDevice) { Write-Host "OTA device     : $metaDevice" }
 if ($metaPatch) { Write-Host "OTA metadata   : security patch $metaPatch" }
 Write-Host "Boot header    : Android $($boot.OsVersion), patch $($boot.PatchLevel) (header v$($boot.HeaderVersion))"
-if ($boot.KernelRelease) { Write-Host "Boot kernel    : $($boot.KernelRelease)" }
+if ($boot.KernelRelease) { Write-Host "Boot kernel    : $($boot.KernelRelease)$(if ($boot.KernelCompiler) { ", clang $($boot.KernelCompiler)" })" }
 if ($payloadParts) {
   $bootParts = @($payloadParts | Where-Object { $_ -in 'boot', 'init_boot', 'vendor_boot', 'dtbo', 'recovery' })
   Write-Host ("OTA writes     : {0} partitions, including {1}" -f $payloadParts.Count, ($bootParts -join ', '))
@@ -750,13 +784,17 @@ if ($RecoveryImg) {
   $kernelProblem = $null
   if ($rec.Kind -eq 'vendor_boot') {
     Write-Host "Recovery props : Android $($rec.OsVersion), patch $($rec.PatchDate) (vendor_boot v$($rec.HeaderVersion))"
-    Write-Host "Recovery kmods : $(if ($rec.Vermagic) { $rec.Vermagic } else { '(no modules found)' })"
+    Write-Host "Recovery kmods : $(if ($rec.Vermagic) { $rec.Vermagic } else { '(no modules found)' })$(if ($rec.KmodCompiler) { ", clang $($rec.KmodCompiler)" })"
     if (-not $boot.KernelRelease) {
       $kernelProblem = 'the ROM kernel release could not be read from boot.img; compare the module version by hand'
     }
     elseif ($rec.Vermagic -and $rec.Vermagic -ne $boot.KernelRelease) {
       $kernelProblem = "the kernel modules in this vendor_boot were built for $($rec.Vermagic), the ROM kernel is $($boot.KernelRelease). vendor_boot is also used for the normal Android boot, so flashing it can stop Android from booting"
     }
+    # Same release string, different compiler: the kernel was rebuilt (bramble: LineageOS 23.2
+    # with clang 21.0.0, 24.0 with clang 22.0.2, both 4.19.325-cip136-st20-g2af5306961ae, all
+    # 221 modules differ).
+    $kernelRebuilt = (-not $kernelProblem) -and $rec.KmodCompiler -and $boot.KernelCompiler -and ($rec.KmodCompiler -ne $boot.KernelCompiler)
   }
   else {
     Write-Host "Recovery header: Android $($rec.OsVersion), patch $($rec.PatchLevel)"
@@ -797,12 +835,22 @@ if ($RecoveryImg) {
     elseif ($kernelProblem) {
       Write-Host "RESULT: do not flash: $kernelProblem." -ForegroundColor Red
     }
+    elseif ($kernelRebuilt) {
+      Write-Host "RESULT: do not flash: the version strings match, but the ROM kernel was built with clang $($boot.KernelCompiler) and the modules in this vendor_boot with clang $($rec.KmodCompiler). The kernel was rebuilt; these modules have not been tested with it. Use an image built from this ROM's vendor_boot." -ForegroundColor Red
+    }
     else {
       Write-Host 'RESULT: match, the kernel modules fit this ROM kernel' -ForegroundColor Green
     }
     if (-not $patchMatch) {
       $recMonth = if ($rec.PatchDate.Length -ge 7) { $rec.PatchDate.Substring(0, 7) } else { $rec.PatchDate }
-      if ([string]::CompareOrdinal($recMonth, $boot.PatchLevel) -lt 0) {
+      $recOs = [int]($rec.OsVersion.Split('.')[0]); $romOs = [int]($boot.OsVersion.Split('.')[0])
+      if ($recOs -lt $romOs -and [string]::CompareOrdinal($recMonth, $boot.PatchLevel) -le 0) {
+        Write-Host "DECRYPT: no. The recovery reports Android $recOs, the ROM Android $romOs. Keymaster binds the metadata key to the Android version as well as the patch level; once the ROM has started, a recovery with a lower value is expected to fail as it does with a lower patch (error -38, measured), and /data stays encrypted. Build the recovery with PLATFORM_VERSION := $romOs." -ForegroundColor Yellow
+      }
+      elseif ($recOs -gt $romOs) {
+        Write-Host "DECRYPT: do not decrypt with this image. The recovery reports Android $recOs, higher than the ROM's Android $romOs; keymaster can upgrade the metadata key, and the ROM can then no longer unlock /data." -ForegroundColor Red
+      }
+      elseif ([string]::CompareOrdinal($recMonth, $boot.PatchLevel) -lt 0) {
         Write-Host "DECRYPT: no. The recovery reports patch $($rec.PatchDate), the ROM $($boot.PatchLevel). Once the ROM has started, keymaster refuses the metadata key in this recovery (error -38) and /data stays encrypted; the key is not changed. Android still starts if RESULT is a match. Decryption needs a recovery built with PLATFORM_SECURITY_PATCH := $target." -ForegroundColor Yellow
       }
       elseif ([string]::CompareOrdinal($recMonth, $boot.PatchLevel) -gt 0) {
@@ -821,7 +869,7 @@ if ($RecoveryImg) {
       Write-Host 'ROM INSTALL: Android starts. The package writes its own vendor_boot to the inactive slot, whether the LineageOS Updater or OrangeFox installs it, and OrangeFox does not write itself back there. OrangeFox is gone from that slot until it is installed again; RESULT above says whether this image may be.' -ForegroundColor Green
     }
     elseif ($payloadParts) {
-      if ($kernelProblem) {
+      if ($kernelProblem -or $kernelRebuilt) {
         Write-Host 'ROM INSTALL: the package does not write vendor_boot, so the new slot keeps the vendor_boot it has. If that slot holds this image, its modules do not fit and Android may not start (see RESULT). Flash a vendor_boot that matches the ROM kernel to that slot first.' -ForegroundColor Red
       }
       else {
