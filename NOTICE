@@ -51,7 +51,7 @@ authors and licenses:
 * prebuilt/Image.lz4, prebuilt/dtb/bramble.dtb, prebuilt/dtbo.img,
   prebuilt/vendor_ramdisk/lib/modules/*
   Taken from the LineageOS 23.2 bramble boot, vendor_boot and dtbo images
-  (lineage-23.2-20261003-NIGHTLY-bramble, Linux
+  (lineage-23.2-20261010-NIGHTLY-bramble, Linux
   4.19.325-cip136-st20-g2af5306961ae). GPL-2.0.
   Source: https://github.com/LineageOS/android_kernel_google_redbull
 
