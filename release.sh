@@ -21,7 +21,7 @@ grep -q "$SHA" "$TREE/test-notes.md" || { echo "test-notes.md does not name the 
   || { echo "hardware/qcom-caf/bootctrl differs from patches/hardware_qcom-caf_bootctrl.diff; regenerate the patch first." >&2; exit 1; }
 REPO=Gursu-Bilisim/bramble-orangefox
 PATCH=$(grep '^PLATFORM_SECURITY_PATCH' "$TREE/BoardConfig.mk" | awk '{print $3}')
-PV=$(grep '^PLATFORM_VERSION' "$TREE/BoardConfig.mk" | awk '{print $3}')
+PV=$(grep -E '^PLATFORM_VERSION[[:space:]]*:=' "$TREE/BoardConfig.mk" | awk '{print $3}')
 case "$PV" in
   16) LOS=23.2 ;;
   17) LOS=24.0 ;;
