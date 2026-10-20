@@ -23,6 +23,7 @@ Tests with this image, flashed to `vendor_boot_b`:
 | Backup list | OK | Boot, Data, Super, Vendor Boot, DTBO (`twrp.flags`) |
 | Zip install from OrangeFox | OK | |
 | Android boot with this vendor_boot | OK | from slot b |
+| Boot control | not retested | bootctrl patch and boot HAL files unchanged since v2026.10.18; `recovery-inspect.ps1` Boot control checks OK |
 | `recovery-inspect.ps1` (`.img` and `.zip`) | OK | all checks, including Display |
 | `patch-check.ps1` against the ROM boot.img and the OTA zip | OK | `RESULT: match`, no `DECRYPT` line, `ROM INSTALL: Android starts` |
 
