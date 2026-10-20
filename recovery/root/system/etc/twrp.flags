@@ -1,0 +1,2 @@
+/vendor_boot  emmc  /dev/block/bootdevice/by-name/vendor_boot  flags=display="Vendor Boot";backup=1;flashimg=1;slotselect
+/dtbo         emmc  /dev/block/bootdevice/by-name/dtbo         flags=display="DTBO";backup=1;flashimg=1;slotselect

@@ -58,19 +58,33 @@ misc partition still holds the recovery command. Clear it from a shell in the re
 cd <OrangeFox source tree>
 source build/envsetup.sh
 export ALLOW_MISSING_DEPENDENCIES=true
-lunch twrp_bramble-eng
 for v in $(compgen -e | grep -E '^(OF_|FOX_)'); do unset "$v"; done
+export TARGET_PRODUCT=twrp_bramble
 source device/google/bramble/vendorsetup.sh
+rm -f /tmp/bramble/fox_env.sh
+lunch twrp_bramble-eng
 touch bootable/recovery/orangefox.mk
-mka adbd vendorbootimage
+mka adbd libminuitwrp
+cp out/target/product/bramble/system/lib64/libminuitwrp.so out/target/product/bramble/recovery/root/system/lib64/
+mka vendorbootimage
 ```
 
 The output is `out/target/product/bramble/OrangeFox-*-bramble.img` and `.zip`.
 
-The `unset`, `source` and `touch` lines matter when the source tree holds other OrangeFox devices:
-`envsetup.sh` sources every `device/*/*/vendorsetup.sh` in alphabetical order and the last one
-wins, and the `OF_`/`FOX_` values are compiled into the recovery through
-`bootable/recovery/orangefox.mk`, which Kati only re-reads when a makefile changes.
+Why the extra lines:
+
+- `vendorsetup.sh` exports its values only while `TARGET_PRODUCT` is `twrp_bramble`.
+  `envsetup.sh` sources every `device/*/*/vendorsetup.sh` in alphabetical order, so in a source
+  tree with other OrangeFox devices the last file would otherwise win.
+- `lunch` writes the OrangeFox settings to `/tmp/bramble/fox_env.sh`, and the packaging step
+  reads them from there; check that `FOX_BUILD_DEVICE` is `bramble` and
+  `FOX_VENDOR_BOOT_RECOVERY` is `1` in that file. The values compiled into the recovery come
+  from `bootable/recovery/orangefox.mk`, which Kati only re-reads when a makefile changes, hence
+  the `touch`.
+- `libminuitwrp.so` is copied into the ramdisk by a post-install command that does not run
+  again in an incremental build. Since the colour change in `patches/bootable_recovery.diff`,
+  the `recovery` binary needs the new library (`res_swap_red_blue`); an old copy keeps the
+  recovery from starting. `recovery-inspect.ps1` checks this in its Display group.
 
 `BOARD_AVB_ENABLE := true` in `BoardConfig.mk` is needed for the OrangeFox packaging step: in
 fox_12.1 `build/make/core/Makefile` calls it only in the AVB branch of the `vendor_boot` rule.
@@ -109,9 +123,10 @@ build, the `patch-check.ps1` output and `/tmp/recovery.log`.
 
 ### patch-check.ps1
 
-Checks whether a recovery image fits a ROM build before you flash it. For a `vendor_boot` image it
-reads the Android version and security patch from the ramdisk's `prop.default` and compares the
-kernel module version with the ROM kernel; for a `recovery.img` it reads the image header.
+Checks whether a recovery image fits a ROM build before you flash it. For a `vendor_boot` image
+the verdict comes from the kernel modules: their version must match the ROM kernel. The Android
+version and security patch from the ramdisk's `prop.default` are shown as a note. For a
+`recovery.img` the verdict comes from the image header.
 Works in Windows PowerShell 5.1 and PowerShell 7. A/B OTA packages (`payload.bin`) need
 [payload-dumper-go](https://github.com/ssut/payload-dumper-go) or the `payload_dumper` bundled with
 Multi Image Kitchen.
@@ -128,14 +143,16 @@ Boot header    : Android 16.0.0, patch 2026-09 (header v3)
 Boot kernel    : 4.19.325-cip136-st20-g2af5306961ae
 Recovery props : Android 16.0.0, patch 2026-09-01 (vendor_boot v3)
 Recovery kmods : 4.19.325-cip136-st20-g2af5306961ae
-RESULT: match, no rebuild needed
+RESULT: match, the kernel modules fit this ROM kernel
 ```
 
 ### recovery-inspect.ps1
 
-Lists what a bramble OrangeFox image contains: first stage files and modules, the QTI decryption
-chain, the Titan M services with their Android 16 runtime, boot control, and USB. Accepts the
-`.img` or the OrangeFox `.zip`.
+Lists what an OrangeFox image contains. The same script is used for every device of
+Gursu-Bilisim; it reads the device from the image and runs that device's checks. For bramble:
+first stage files and modules, the QTI decryption chain, the Titan M services with their
+Android 16 runtime, boot control, display library and USB. Accepts the `.img` or the OrangeFox
+`.zip`.
 
 ```
 powershell -ExecutionPolicy Bypass -File recovery-inspect.ps1 -Img <OrangeFox .img | .zip>

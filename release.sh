@@ -13,10 +13,22 @@ ZIP=${IMG%.img}.zip
 if [ "$TREE/test-notes.md" -ot "$IMG" ]; then
   echo "test-notes.md is older than $(basename "$IMG"). Update it for this build first." >&2; exit 1
 fi
+SHA=$(sha256sum "$IMG" | awk '{print $1}')
+grep -q "$SHA" "$TREE/test-notes.md" || { echo "test-notes.md does not name the image SHA-256 ($SHA)." >&2; exit 1; }
+(cd "$FOX_TREE/bootable/recovery" && git diff) | cmp -s - "$TREE/patches/bootable_recovery.diff" \
+  || { echo "bootable/recovery differs from patches/bootable_recovery.diff; regenerate the patch first." >&2; exit 1; }
+(cd "$FOX_TREE/hardware/qcom-caf/bootctrl" && git diff) | cmp -s - "$TREE/patches/hardware_qcom-caf_bootctrl.diff" \
+  || { echo "hardware/qcom-caf/bootctrl differs from patches/hardware_qcom-caf_bootctrl.diff; regenerate the patch first." >&2; exit 1; }
 REPO=Gursu-Bilisim/bramble-orangefox
 PATCH=$(grep '^PLATFORM_SECURITY_PATCH' "$TREE/BoardConfig.mk" | awk '{print $3}')
+PV=$(grep '^PLATFORM_VERSION' "$TREE/BoardConfig.mk" | awk '{print $3}')
+case "$PV" in
+  16) LOS=23.2 ;;
+  17) LOS=24.0 ;;
+  *) echo "Unknown PLATFORM_VERSION $PV; add its LineageOS version to release.sh." >&2; exit 1 ;;
+esac
 TAG="v$(date +%Y.%m.%d)${1:+-$1}"
-NAME="OrangeFox-bramble-$TAG-los23-$PATCH"
+NAME="OrangeFox-bramble-$TAG-los${LOS%%.*}-$PATCH"
 W=$(mktemp -d)
 cp "$IMG" "$W/$NAME.img"
 cp "$ZIP" "$W/$NAME.zip"
@@ -27,12 +39,12 @@ cp "$TREE/test-notes.md" "$W/TEST-NOTES.md"
 cat <<NOTES
 OrangeFox R12.0_1 for Google Pixel 4a (5G), bramble. Installed to vendor_boot.
 
-- ROM: LineageOS 23.2, security patch $PATCH
+- ROM: LineageOS $LOS only, security patch $PATCH (build named in the test notes below)
 - Decryption: FBE v2 + metadata encryption, Titan M (Weaver) for the lock screen
 
 **vendor_boot is also used for the normal Android boot.** The image carries the kernel modules
-of one LineageOS build. Do not flash it after a LineageOS update until \`patch-check.ps1\`
-reports a match for the new build; a module mismatch can stop Android from booting.
+of one LineageOS $LOS build. Do not flash it on another build, or after a LineageOS update, until
+\`patch-check.ps1\` reports a match; a module mismatch can stop Android from booting.
 A LineageOS OTA replaces vendor_boot, so OrangeFox has to be installed again afterwards.
 Other ROMs need a rebuild of this tree with their own images; see "Other ROMs" in README.md.
 
