@@ -1,8 +1,9 @@
 # bramble-orangefox
 
 OrangeFox R12.0 (fox_12.1) for the Google Pixel 4a (5G), `bramble`, with `/data` decryption on
-LineageOS 23.2 (Android 16). The device has no recovery partition, so OrangeFox is built into
-`vendor_boot`.
+LineageOS 24.0 (Android 17). The device has no recovery partition, so OrangeFox is built into
+`vendor_boot`. Images for LineageOS 23.2 (Android 16) are built from the
+[`lineage-23.2`](../../tree/lineage-23.2) branch.
 
 Tested build, test results and known gaps: [test-notes.md](test-notes.md). Every release carries
 its own `TEST-NOTES.md`.
@@ -12,8 +13,8 @@ its own `TEST-NOTES.md`.
 - Decryption of FBE v2 with metadata encryption: QTI keymaster 4.0 and gatekeeper through
   `qseecomd`, keystore2, and the lock screen credential through Titan M (Weaver)
 - ADB, MTP, battery indicator, slot selection (QTI boot control 1.2)
-- Backups: Boot, Data, Super, Vendor Boot and DTBO can be selected; a Data backup to an exFAT
-  SD card on USB-OTG (shown as Storage 1) was tested
+- Backups: Boot, Data, Super, Vendor Boot and DTBO can be selected. USB-OTG storage shows up as
+  Storage 1: an exFAT SD card works (a Data backup was tested), a FAT32 USB stick was not mounted
 - Normal Android boot from the same `vendor_boot`
 
 ## Read this before flashing
@@ -67,20 +68,39 @@ Add-on packages (microG, Google Apps, other installer zips) have to be installed
 2. Do not install the add-ons in the same session. They would be written to the slot that is still
    running, and the new slot would start without them. OrangeFox says so at the end of the
    install: `To flash additional zips, please reboot recovery to switch to the updated slot.`
-3. Reboot to recovery. The new slot starts Lineage recovery from its own `vendor_boot`. Choose
-   Apply update, then Apply from ADB, and run `adb sideload <add-on zip>` for each package.
+3. Reboot to recovery. The new slot starts Lineage recovery from its own `vendor_boot`, which the
+   update has just written. Choose Apply update, then Apply from ADB, and run
+   `adb sideload <add-on zip>` for each package.
 4. Reboot to system.
+
+Do not flash OrangeFox to the new slot before its first boot. Until then the update is a compressed
+Virtual A/B snapshot that only `snapuserd` can read, and OrangeFox (TWRP 12.1 base) does not run
+it: it shows the slot's previous system (Android 16 after installing 24.0 on the test device), and
+an add-on installed there is not part of the new system. An OrangeFox image built for a newer
+Android version also unlocks the metadata layer as soon as it starts and upgrades the key to that
+version.
+
+After a new version has started, the other slot can no longer unlock `/data`: keymaster does not
+give the upgraded key back to an older system. If the bootloader ever falls back to that slot, it
+starts a system without access to your data. Install the update a second time to bring the other
+slot to the same build, again with the add-ons before its first boot.
 
 Google Apps packages are built for one Android version, so a new LineageOS version needs a new
 package: for 24.0 (Android 17) the Android 17 package for arm64. The LineageOS guide asks for it
 before the first boot of the new version, and allows adding or removing Google Apps only with a
-factory reset. On the test device the microG
-installer was not carried over by an update from 23.2-20261003 to 23.2-20261010; it was installed
-after the first boot with `adb sideload` and works (`/product/priv-app/GmsCore`). For a new Android
-version, install it before the first boot.
+factory reset.
 
-Install OrangeFox again once there is an image for the new build (`patch-check.ps1` reports a
-match and no `DECRYPT` line), with `fastboot flash vendor_boot_<new slot> <img>`.
+On the test device the microG installer was not carried over by an update from 23.2-20261003 to
+23.2-20261010, and the first boot ran without it. Android removes the data of a system package that
+is gone after an update: after microG was installed again with `adb sideload`, the Google account
+and the microG settings were gone, and an app's Play licence check returned `NOT_LICENSED` (561).
+From 23.2-20261010 to 24.0-20261017 microG was installed from Lineage recovery before the first boot
+of each slot, and the account stayed. Install add-ons before the first boot, for a nightly of the
+same version too.
+
+After the first boot, install OrangeFox again once there is an image for the new build
+(`patch-check.ps1` reports a match and no `DECRYPT` line), with
+`fastboot flash vendor_boot_<new slot> <img>`.
 
 ## Building
 
@@ -132,9 +152,14 @@ fox_12.1 `build/make/core/Makefile` calls it only in the AVB branch of the `vend
 
 Take `Image.lz4` and the DTB from the new `boot.img`, `dtbo.img`, and `first_stage_ramdisk` and
 `lib/modules` from the new `vendor_boot.img`, then update `PLATFORM_SECURITY_PATCH` and
-`VENDOR_SECURITY_PATCH` in `BoardConfig.mk`. A recovery with a lower patch level than the ROM
-fails with keymaster error -38; a higher one may upgrade the metadata key so that the ROM can no
-longer unlock `/data`.
+`VENDOR_SECURITY_PATCH` in `BoardConfig.mk` (and `PLATFORM_VERSION` for a new Android version). A
+recovery with a lower patch level than the ROM fails with keymaster error -38; a higher one may
+upgrade the metadata key so that the ROM can no longer unlock `/data`.
+
+The Titan M services keep their Android 16 runtime (`recovery/root/system/lib64/a16` and
+`linker64_a16`) on LineageOS 24.0. It belongs to the vendor files in `recovery/root`, which come
+from the 2023 vendor image, not to the ROM. The Android 17 `libbinder_ndk` needs `libbinder`
+symbols that this vendor `libbinder.so` does not have.
 
 ## Other ROMs
 
@@ -187,16 +212,16 @@ powershell -ExecutionPolicy Bypass -File patch-check.ps1 -BootImg <boot.img> -Re
 powershell -ExecutionPolicy Bypass -File patch-check.ps1 -Zip <ota.zip> -RecoveryImg <OrangeFox .img | .zip>
 ```
 
-Example output (lineage-23.2-20261010 and the image built for it):
+Example output (lineage-24.0-20261017 and the image built for it):
 
 ```
 OTA device     : bramble
 OTA metadata   : security patch 2026-10-01
-Boot header    : Android 16.0.0, patch 2026-10 (header v3)
-Boot kernel    : 4.19.325-cip136-st20-g2af5306961ae
+Boot header    : Android 17.0.0, patch 2026-10 (header v3)
+Boot kernel    : 4.19.325-cip136-st20-g2af5306961ae, clang 22.0.2
 OTA writes     : 21 partitions, including boot, dtbo, vendor_boot
-Recovery props : Android 16.0.0, patch 2026-10-01 (vendor_boot v3)
-Recovery kmods : 4.19.325-cip136-st20-g2af5306961ae
+Recovery props : Android 17.0.0, patch 2026-10-01 (vendor_boot v3)
+Recovery kmods : 4.19.325-cip136-st20-g2af5306961ae, clang 22.0.2
 Recovery device: bramble
 RESULT: match, the kernel modules fit this ROM kernel
 ROM INSTALL: Android starts. The package writes its own vendor_boot to the inactive slot, ...
