@@ -21,7 +21,7 @@ Tests with this image:
 | Battery indicator | OK | |
 | Status bar, camera cutout, accent colour, pattern touches | OK | |
 | Backup list | OK | Boot, Data, Super, Vendor Boot, DTBO |
-| USB-OTG storage | partly | an exFAT SD card in a powered USB hub is mounted as Storage 1; a FAT32 USB stick was not mounted |
+| USB-OTG storage | OK for exFAT and FAT32 | an exFAT SD card and a FAT32 USB stick in a powered USB hub are mounted as Storage 1; an NTFS stick is not mounted (no `ntfs-3g` in this build); the connection dropped at times on the test device, whose USB port is worn |
 | Zip install from OrangeFox | OK | writes `vendor_boot_a` and `vendor_boot_b`; after the reboot OrangeFox started and decrypted /data |
 | Android boot with this vendor_boot | OK | from slot a and from slot b |
 | Boot control | OK | slot A selected in the reboot menu, Android started from slot a; back to slot b the same way |

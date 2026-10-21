@@ -14,7 +14,9 @@ its own `TEST-NOTES.md`.
   `qseecomd`, keystore2, and the lock screen credential through Titan M (Weaver)
 - ADB, MTP, battery indicator, slot selection (QTI boot control 1.2)
 - Backups: Boot, Data, Super, Vendor Boot and DTBO can be selected. USB-OTG storage shows up as
-  Storage 1: an exFAT SD card works (a Data backup was tested), a FAT32 USB stick was not mounted
+  Storage 1: exFAT (an SD card; a Data backup was tested) and FAT32 (a USB stick) are mounted.
+  NTFS is not: this build has no `ntfs-3g`. LineageOS itself mounts NTFS and FAT32 but not exFAT
+  (its 4.19 kernel has no exFAT driver), so NTFS or exFAT suits backups larger than 4 GB per file
 - Normal Android boot from the same `vendor_boot`
 
 ## Read this before flashing
