@@ -13,10 +13,12 @@ its own `TEST-NOTES.md`.
 - Decryption of FBE v2 with metadata encryption: QTI keymaster 4.0 and gatekeeper through
   `qseecomd`, keystore2, and the lock screen credential through Titan M (Weaver)
 - ADB, MTP, battery indicator, slot selection (QTI boot control 1.2)
-- Backups: Boot, Data, Super, Vendor Boot and DTBO can be selected. USB-OTG storage shows up as
-  Storage 1: exFAT (an SD card; a Data backup was tested) and FAT32 (a USB stick) are mounted.
-  NTFS is not: this build has no `ntfs-3g`. LineageOS itself mounts NTFS and FAT32 but not exFAT
-  (its 4.19 kernel has no exFAT driver), so NTFS or exFAT suits backups larger than 4 GB per file
+- Backups: Boot, Data, Super, Vendor Boot and DTBO can be selected.
+- USB-OTG: a USB stick or card reader is listed as USB-Storage on the Mount page and can hold
+  backups. FAT32, exFAT and NTFS are mounted (NTFS through `ntfs-3g`). The phone has one USB-C
+  port, so while a stick is attached there is no MTP or adb over USB; after removing the stick,
+  turn MTP off and on. On the same device LineageOS mounts NTFS but not exFAT (its 4.19 kernel has
+  no exFAT driver). FAT32 limits files to 4 GB.
 - Normal Android boot from the same `vendor_boot`
 
 ## Read this before flashing
@@ -125,10 +127,16 @@ source device/google/bramble/vendorsetup.sh
 rm -f /tmp/bramble/fox_env.sh
 lunch twrp_bramble-eng
 touch bootable/recovery/orangefox.mk
-mka adbd libminuitwrp
-cp out/target/product/bramble/system/lib64/libminuitwrp.so out/target/product/bramble/recovery/root/system/lib64/
+mka adbd libminuitwrp mount.ntfs fsck.ntfs mkfs.ntfs libntfs-3g libfuse-lite
+P=out/target/product/bramble
+cp $P/system/lib64/{libminuitwrp,libntfs-3g,libfuse-lite}.so $P/recovery/root/system/lib64/
+cp $P/system/bin/{mount,fsck,mkfs}.ntfs $P/recovery/root/system/bin/
+rm -f $P/vendor_boot.img $P/ramdisk-recovery.img $P/ramdisk-recovery.cpio
 mka vendorbootimage
 ```
+
+Run the commands on separate lines: `source build/envsetup.sh` can return a non-zero status, so
+a chain joined with `&&` stops after it.
 
 The output is `out/target/product/bramble/OrangeFox-*-bramble.img` and `.zip`.
 
@@ -145,7 +153,12 @@ Why the extra lines:
 - `libminuitwrp.so` is copied into the ramdisk by a post-install command that does not run
   again in an incremental build. Since the colour change in `patches/bootable_recovery.diff`,
   the `recovery` binary needs the new library (`res_swap_red_blue`); an old copy keeps the
-  recovery from starting. `recovery-inspect.ps1` checks this in its Display group.
+  recovery from starting. `recovery-inspect.ps1` checks this in its Display group. The NTFS tools
+  (`TW_INCLUDE_NTFS_3G`: `mount.ntfs`, `fsck.ntfs`, `mkfs.ntfs`, `libntfs-3g.so`,
+  `libfuse-lite.so`) reach the ramdisk the same way and are copied by hand too.
+- The theme is copied into `recovery/root/twres`, but the ramdisk does not depend on those
+  files: after a change to theme files only, `mka vendorbootimage` keeps the old image. Deleting
+  `vendor_boot.img`, `ramdisk-recovery.img` and `ramdisk-recovery.cpio` makes it rebuild them.
 
 `BOARD_AVB_ENABLE := true` in `BoardConfig.mk` is needed for the OrangeFox packaging step: in
 fox_12.1 `build/make/core/Makefile` calls it only in the AVB branch of the `vendor_boot` rule.

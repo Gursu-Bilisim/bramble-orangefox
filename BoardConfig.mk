@@ -112,3 +112,7 @@ TARGET_USES_LOGD := true
 
 TW_USE_LEGACY_BATTERY_SERVICES := true
 BOARD_AVB_ENABLE := true
+
+# NTFS on USB-OTG storage (ntfs-3g over FUSE; the kernel has no NTFS driver).
+# The tools are copied into the ramdisk by hand, see README (Building).
+TW_INCLUDE_NTFS_3G := true

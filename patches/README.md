@@ -30,6 +30,16 @@ patch contains the changes made for those devices as well.
   orange accent no longer shows as blue (made for jackpotlte). bramble uses `RGBX_8888`, where
   the function returns 0 and nothing changes; the `recovery` binary still needs the new
   `libminuitwrp.so`.
+- `orangefox.mk`, `data.cpp`, `gui/pages.cpp`: new build variable `OF_SCREEN_BOTTOM_INSET`
+  (pixels, default 0). The theme variables `screen_original_h` and `screen_h` become
+  `OF_SCREEN_H` minus the inset, so the lock-screen swipe, the navigation buttons and the bottom
+  menu move up by that amount, while the theme is still scaled to the full `OF_SCREEN_H` (new
+  constant `screen_full_h`). bramble does not set it, so nothing changes here (made for tucana,
+  whose screen curves at the bottom edge).
+- Theme (`pages/templates/templates.xml`, `resources/vars.xml`): the "show password" eye icon on
+  the decrypt page only reacted to touches on its 64x46 px image. An invisible 144x144 px button
+  centred on the icon (`pass_show_touch_x`, `pass_show_touch_y`) now does the same (made for
+  tucana).
 - Theme (`gui/theme/portrait_hdpi/themes/navbar.xml`): gesture navigation is off by default and
   the screen height no longer adds 96 px for a hidden navigation bar (made for tucana).
 

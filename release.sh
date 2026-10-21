@@ -15,11 +15,24 @@ if [ "$TREE/test-notes.md" -ot "$IMG" ]; then
 fi
 SHA=$(sha256sum "$IMG" | awk '{print $1}')
 grep -q "$SHA" "$TREE/test-notes.md" || { echo "test-notes.md does not name the image SHA-256 ($SHA)." >&2; exit 1; }
-(cd "$FOX_TREE/bootable/recovery" && git diff) | cmp -s - "$TREE/patches/bootable_recovery.diff" \
+# Both patches are diffs against the base commits in patches/BASE_REVISION.
+base() { awk -v f="$1" '$0==f{s=1} s&&/^commit:/{print $2; exit}' "$TREE/patches/BASE_REVISION"; }
+git -C "$FOX_TREE/bootable/recovery" diff "$(base bootable_recovery.diff)" | cmp -s - "$TREE/patches/bootable_recovery.diff" \
   || { echo "bootable/recovery differs from patches/bootable_recovery.diff; regenerate the patch first." >&2; exit 1; }
-(cd "$FOX_TREE/hardware/qcom-caf/bootctrl" && git diff) | cmp -s - "$TREE/patches/hardware_qcom-caf_bootctrl.diff" \
+git -C "$FOX_TREE/hardware/qcom-caf/bootctrl" diff "$(base hardware_qcom-caf_bootctrl.diff)" | cmp -s - "$TREE/patches/hardware_qcom-caf_bootctrl.diff" \
   || { echo "hardware/qcom-caf/bootctrl differs from patches/hardware_qcom-caf_bootctrl.diff; regenerate the patch first." >&2; exit 1; }
 REPO=Gursu-Bilisim/bramble-orangefox
+
+# The release tag must point at the device tree the image was built from. gh creates a missing
+# tag from the default branch, so pass the commit explicitly and require it to be on GitHub.
+HEAD=$(git -C "$TREE" rev-parse HEAD)
+if [ -n "$(git -C "$TREE" status --porcelain --untracked-files=no)" ]; then
+  echo "The device tree has uncommitted changes. Commit and push them first." >&2; exit 1
+fi
+git -C "$TREE" fetch -q origin || { echo "git fetch failed." >&2; exit 1; }
+if [ -z "$(git -C "$TREE" branch -r --contains "$HEAD")" ]; then
+  echo "Commit $HEAD is not on GitHub. Push it first." >&2; exit 1
+fi
 PATCH=$(grep '^PLATFORM_SECURITY_PATCH' "$TREE/BoardConfig.mk" | awk '{print $3}')
 PV=$(grep -E '^PLATFORM_VERSION[[:space:]]*:=' "$TREE/BoardConfig.mk" | awk '{print $3}')
 case "$PV" in
@@ -61,5 +74,5 @@ NOTES
 cat "$TREE/test-notes.md"
 } > "$W/notes.md"
 gh release create "$TAG" "$W"/*.img "$W"/*.zip "$W"/*.ps1 "$W/TEST-NOTES.md" "$W/SHA256SUMS" \
-  --repo "$REPO" --title "$TAG" --notes-file "$W/notes.md"
+  --repo "$REPO" --target "$HEAD" --title "$TAG" --notes-file "$W/notes.md"
 echo "Published: $TAG"
