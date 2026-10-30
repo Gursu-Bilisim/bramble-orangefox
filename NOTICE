@@ -50,18 +50,25 @@ authors and licenses:
 
 * prebuilt/Image.lz4, prebuilt/dtb/bramble.dtb, prebuilt/dtbo.img,
   prebuilt/vendor_ramdisk/lib/modules/*
-  Taken from the LineageOS 23.2 bramble boot, vendor_boot and dtbo images
+  Taken from the LineageOS 24.0 bramble boot, vendor_boot and dtbo images
   (lineage-24.0-20261017-NIGHTLY-bramble, Linux
-  4.19.325-cip136-st20-g2af5306961ae). GPL-2.0.
+  4.19.325-cip136-st20-g2af5306961ae, clang 22.0.2). GPL-2.0.
+  The lineage-23.2 branch carries the files of the LineageOS 23.2 build.
   Source: https://github.com/LineageOS/android_kernel_google_redbull
 
-* prebuilt/vendor_ramdisk/first_stage_ramdisk/*,
-  recovery/root/system/bin/linker64_a16, recovery/root/system/lib64/a16/*,
+* prebuilt/vendor_ramdisk/first_stage_ramdisk/*
+  Android Open Source Project components (bionic, e2fsprogs, f2fs-tools and
+  others) from the vendor_boot image of lineage-24.0-20261017-NIGHTLY-bramble.
+
+* recovery/root/system/bin/linker64_a16, recovery/root/system/lib64/a16/*,
   recovery/root/vendor/lib64/libapexsupport.so
-  Android Open Source Project components (bionic, e2fsprogs, f2fs-tools,
-  libbinder_ndk, libselinux and others) from the LineageOS 23.2 bramble build,
-  and libdl_android.so from a TWRP 12.1 build. Each keeps its upstream license
-  (mostly Apache License 2.0 and BSD licenses; e2fsprogs parts under GPL/LGPL).
+  Android Open Source Project components (bionic, libbinder_ndk, libselinux
+  and others) from the LineageOS 23.2 bramble build, and libdl_android.so from
+  a TWRP 12.1 build. They run the Titan M services on the Android 16 runtime
+  and are used unchanged with LineageOS 24.0.
+
+  Both groups keep their upstream licenses (mostly Apache License 2.0 and BSD
+  licenses; e2fsprogs parts under GPL/LGPL).
 
 * recovery/root/system/bin/qseecomd,
   recovery/root/system/bin/android.hardware.keymaster@4.0-service-qti,

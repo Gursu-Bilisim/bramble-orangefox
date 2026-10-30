@@ -54,40 +54,190 @@ misc partition still holds the recovery command. Clear it from a shell in the re
 ## Updating LineageOS
 
 A LineageOS update is installed to the inactive slot and brings its own `vendor_boot`, so the new
-slot starts without OrangeFox. Before updating, run
-`patch-check.ps1 -Zip <new LineageOS zip> -RecoveryImg <OrangeFox .img | .zip>`: `ROM INSTALL`
-says whether the new slot starts, `RESULT` and `DECRYPT` say whether this OrangeFox fits the new
-build.
+slot starts without OrangeFox. The steps below put OrangeFox, add-ons and root back on the new
+slot. They were written while updating the test device from lineage-24.0-20261017 on slot b to
+lineage-24.0-20261024 on slot a; the pictures are from that update.
 
-- Nightly of the same version: the LineageOS Updater, or install the zip from OrangeFox.
-- New version, for example 23.2 to 24.0: the Updater does not install it. Install the zip from
-  OrangeFox, or with `adb sideload` from Lineage recovery as in the
-  [LineageOS upgrade guide](https://wiki.lineageos.org/devices/bramble/upgrade/). For the
-  sideload, flash the stock `vendor_boot` of the installed build to the running slot first; a
-  `vendor_boot` from the new version carries modules for the new kernel.
+### Before installing: patch-check
 
-Add-on packages (microG, Google Apps, other installer zips) have to be installed to the new slot:
+```
+powershell -ExecutionPolicy Bypass -File patch-check.ps1 -Zip <new LineageOS zip> -RecoveryImg <your OrangeFox .img | .zip>
+```
 
-1. Install the LineageOS zip. OrangeFox prints `Flashing A/B zip to inactive slot`.
-2. Do not install the add-ons in the same session. They would be written to the slot that is still
-   running, and the new slot would start without them. OrangeFox says so at the end of the
-   install: `To flash additional zips, please reboot recovery to switch to the updated slot.`
-3. Reboot to recovery. The new slot starts Lineage recovery from its own `vendor_boot`, which the
-   update has just written. Choose Apply update, then Apply from ADB, and run
-   `adb sideload <add-on zip>` for each package.
-4. Reboot to system.
+| Line | Meaning for this update |
+|---|---|
+| `ROM INSTALL: Android starts` | The package writes its own `vendor_boot`, so the new slot starts Android and Lineage recovery. This is the normal case. |
+| `RESULT: match` | Your OrangeFox image fits the new build's kernel and can be flashed to the new slot in step 6. |
+| `RESULT: do not flash` | The kernel was rebuilt (23.2 to 24.0 was such a case). Wait for an OrangeFox image built for the new build. |
+| `DECRYPT` line present | The new build has another security patch month or Android version. With a lower patch than the ROM, the image starts but does not unlock `/data`; with a higher one it can upgrade the key so that Android no longer unlocks it. Wait for an image built for the new build. |
 
-Do not flash OrangeFox to the new slot before its first boot. Until then the update is a compressed
-Virtual A/B snapshot that only `snapuserd` can read, and OrangeFox (TWRP 12.1 base) does not run
-it: it shows the slot's previous system (Android 16 after installing 24.0 on the test device), and
-an add-on installed there is not part of the new system. An OrangeFox image built for a newer
-Android version also unlocks the metadata layer as soon as it starts and upgrades the key to that
-version.
+A nightly from the same month as your image keeps its security patch, so only `RESULT` decides.
+For lineage-24.0-20261024 and `v2026.10.22` the output was:
 
-After a new version has started, the other slot can no longer unlock `/data`: keymaster does not
-give the upgraded key back to an older system. If the bootloader ever falls back to that slot, it
-starts a system without access to your data. Install the update a second time to bring the other
-slot to the same build, again with the add-ons before its first boot.
+```
+OTA metadata   : security patch 2026-10-01
+Boot kernel    : 4.19.325-cip136-st20-g2af5306961ae, clang 22.0.2
+OTA writes     : 21 partitions, including boot, dtbo, vendor_boot
+Recovery props : Android 17.0.0, patch 2026-10-01 (vendor_boot v3)
+Recovery kmods : 4.19.325-cip136-st20-g2af5306961ae, clang 22.0.2
+RESULT: match, the kernel modules fit this ROM kernel
+ROM INSTALL: Android starts. ...
+```
+
+For root (step 7) you also need the new build's unpatched `boot.img`: extract it from the zip's
+`payload.bin`, for example with
+[payload-dumper-go](https://github.com/ssut/payload-dumper-go):
+`payload-dumper-go -p boot,vendor_boot <payload.bin>`. Keep both images; they are also the way
+back if something does not start.
+
+### Step 1: install the zip to the inactive slot
+
+One of:
+
+- **OrangeFox** (any update). Copy the zip to the phone, for example `adb push <zip> /sdcard/`
+  (adb works in OrangeFox), then open the zip in the Files tab and swipe. OrangeFox prints
+  `Flashing A/B zip to inactive slot` and at the end
+  `To flash additional zips, please reboot recovery to switch to the updated slot.`
+  It does not write itself to the new slot: on `vendor_boot` devices the "Reflash OrangeFox"
+  option is not offered.
+- **LineageOS Updater** (a nightly of the installed version). Settings, System, Updater. Do not
+  use its "Reboot" button if you install add-ons; go to step 2 instead.
+- **Lineage recovery with `adb sideload`** (a new version, as in the
+  [LineageOS upgrade guide](https://wiki.lineageos.org/devices/bramble/upgrade/)). Flash the
+  stock `vendor_boot` of the installed build to the running slot first, start its Lineage
+  recovery, then Apply update, Apply from ADB, `adb sideload <zip>`.
+
+Do not install add-ons in the same session: they would go to the slot that is still running.
+
+### Step 2: start the new slot's Lineage recovery
+
+The install made the new slot active, and its `vendor_boot` now holds Lineage recovery.
+
+- From OrangeFox: Reboot, Recovery. Or from the computer: `adb reboot recovery`.
+- From Android (after the Updater): `adb reboot recovery` with USB debugging on, or the power
+  menu's Restart, Recovery if Advanced restart is enabled in Developer options.
+- From the bootloader: volume keys to `Recovery Mode`, power key to confirm.
+
+<img src="docs/update/lineage-recovery-main.jpg" width="240" alt="Lineage recovery main menu, Version 24.0 (20261024), Active slot: a">
+
+The header shows the new build and `Active slot`. Skip step 3 if you use no add-ons and choose
+`Reboot system now`.
+
+### Step 3: add-ons from Lineage recovery
+
+Install microG, Google Apps or other add-on zips here, before the first boot. Android deletes the
+data of a system app that is missing at first boot; the account and settings of a microG installed
+later are gone (see below).
+
+1. `Apply update`, then `Apply from ADB`. The phone waits for a sideload.
+
+   <img src="docs/update/lineage-recovery-apply-from-adb.jpg" width="240" alt="Apply update, Apply from ADB">
+
+2. On the computer: `adb devices` lists the phone as `sideload`. Then
+   `adb -d sideload <add-on zip>`. In this mode only `adb sideload` works; `adb shell` and
+   `adb reboot` do not.
+3. Add-on zips are not signed with the LineageOS key. At `Signature verification failed` choose
+   `Yes` to install.
+
+   <img src="docs/update/lineage-recovery-signature.jpg" width="240" alt="Signature verification failed, Install anyway? No / Yes">
+
+4. For another package choose `Apply from ADB` again. The arrow at the top left goes back to the
+   main menu.
+
+### Step 4: first boot
+
+`Reboot system now`. The first boot of an update takes longer. Check the add-ons in Settings, Apps:
+microG should be listed as microG Services, and its account should still be there.
+
+If an add-on is missing, install its zip again from OrangeFox after step 6. On the test device
+microG was missing on the new slot after the update of 2026-10-30; installed again from OrangeFox
+after the first boot, it kept the Google account, and apps bought on Play Store still started.
+
+### Step 5: bootloader and active slot
+
+One of:
+
+- `adb reboot bootloader` (Android with USB debugging, or OrangeFox)
+- Power menu, Restart, Bootloader (with Advanced restart enabled)
+- Phone off, then hold Volume down and Power
+
+<img src="docs/update/bootloader-start.jpg" width="240" alt="Fastboot Mode, Boot slot: a">
+
+The screen shows `Boot slot`. From the computer:
+
+```
+fastboot getvar current-slot
+```
+
+It prints `current-slot: a` or `b`. Use that letter as `<slot>` below.
+
+<img src="docs/update/fastboot-getvar.png" width="280" alt="adb reboot bootloader, then fastboot getvar current-slot prints current-slot: a">
+
+### Step 6: OrangeFox to the new slot
+
+Flash only if patch-check reported `RESULT: match` and no `DECRYPT` line. The phone has no
+recovery partition, so `fastboot flash recovery` does not work; OrangeFox goes to `vendor_boot`:
+
+```
+fastboot flash vendor_boot_<slot> <OrangeFox .img>
+```
+
+<img src="docs/update/fastboot-flash-vendor-boot.png" width="560" alt="Sending and Writing vendor_boot_a OKAY">
+
+Then choose `Recovery Mode` with the volume keys and confirm with the power key. OrangeFox starts
+and asks for the lock screen credential; it should unlock `/data`.
+
+<img src="docs/update/bootloader-recovery-mode.jpg" width="240" alt="Bootloader menu, Recovery Mode"> <img src="docs/update/orangefox-decrypt.jpg" width="240" alt="OrangeFox Decrypt page asking for the pattern">
+
+### Step 7: root, if you use it
+
+Patch the new build's `boot.img` with your root manager. A boot image patched for an earlier build
+carries that build's ramdisk; do not reuse it. The root manager app patches without root, so this
+can be done on the new system after step 4: `adb push boot.img /sdcard/Download/`, patch, then
+`adb pull /sdcard/Download/<patched img>` if you flash it with fastboot.
+
+From OrangeFox (the order used on the test device: OrangeFox is checked first, then root):
+
+1. Copy the patched image to the phone if it is not there: `adb push <patched img> /sdcard/Download/`.
+2. Open the image in OrangeFox's Files tab. On `Flash Image File` select `Boot`, leave `Flash to both slots`
+   unticked, and swipe. OrangeFox writes the active slot.
+
+   <img src="docs/update/orangefox-flash-image.jpg" width="240" alt="Flash Image File, partition Boot"> <img src="docs/update/orangefox-flash-done.jpg" width="240" alt="Install Image Successful, Boot slot _a">
+
+3. `Reboot System`.
+
+From the bootloader instead: `fastboot flash boot_<slot> <patched img>`, then `Start`.
+
+Both images can also be flashed in one fastboot session, one after the other:
+
+```
+fastboot flash vendor_boot_<slot> <OrangeFox .img>
+fastboot flash boot_<slot> <patched boot.img>
+```
+
+If Android then does not start, the two cannot be told apart. Flash the unpatched boot first:
+`fastboot flash boot_<slot> <unpatched boot.img>`. On this device root managers have been the
+cause more often than OrangeFox.
+
+### Merging the update
+
+`boot` and `vendor_boot` are written outside the Virtual A/B snapshot, so steps 5 to 7 can follow
+the first boot directly; an unfinished merge resumes when Android starts again. Before installing
+another update or switching slots, wait until the merge has finished: on userdebug builds
+`adb root`, then `adb shell ls /metadata/ota/snapshots` lists nothing.
+
+### Why OrangeFox is not used before the first boot
+
+Until the first boot the update is a compressed Virtual A/B snapshot that only `snapuserd` can
+read, and OrangeFox (TWRP 12.1 base) does not run it: it shows the slot's previous system (Android
+16 after installing 24.0 on the test device), and an add-on installed there is not part of the new
+system. An OrangeFox image built for a newer Android version also unlocks the metadata layer as soon
+as it starts and upgrades the key to that version.
+
+After a new version or security patch has started, the other slot can no longer unlock `/data`:
+keymaster does not give the upgraded key back to an older system. If the bootloader ever falls back
+to that slot, it starts a system without access to your data. Install the update a second time to
+bring the other slot to the same build, again with the add-ons before its first boot.
 
 Google Apps packages are built for one Android version, so a new LineageOS version needs a new
 package: for 24.0 (Android 17) the Android 17 package for arm64. The LineageOS guide asks for it
@@ -101,10 +251,6 @@ and the microG settings were gone, and an app's Play licence check returned `NOT
 From 23.2-20261010 to 24.0-20261017 microG was installed from Lineage recovery before the first boot
 of each slot, and the account stayed. Install add-ons before the first boot, for a nightly of the
 same version too.
-
-After the first boot, install OrangeFox again once there is an image for the new build
-(`patch-check.ps1` reports a match and no `DECRYPT` line), with
-`fastboot flash vendor_boot_<new slot> <img>`.
 
 ## Building
 
@@ -217,7 +363,11 @@ OrangeFox `.img` or `.zip`. For a `vendor_boot` image the script prints up to th
   (`OF_NO_REFLASH_CURRENT_ORANGEFOX` is set for header v3 `vendor_boot` builds), so a package
   that carries `vendor_boot` leaves the new slot with the ROM's own image.
 
-For a `recovery.img` the verdict comes from the image header.
+For a `recovery.img` (the other devices that share this script) the verdict comes from the image
+header and from the `/data` line of the ROM's and the recovery's fstab, printed as `ROM fstab` and
+`Recovery fstab`: a recovery whose fscrypt version differs from the ROM's cannot decrypt `/data`.
+These two lines are read from header v0-v2 images and do not appear for bramble, whose fstab is in
+`vendor_boot`.
 Works in Windows PowerShell 5.1 and PowerShell 7. Extracting `boot.img` from an A/B package
 (`payload.bin`) needs [payload-dumper-go](https://github.com/ssut/payload-dumper-go) or the
 `payload_dumper` bundled with Multi Image Kitchen.
