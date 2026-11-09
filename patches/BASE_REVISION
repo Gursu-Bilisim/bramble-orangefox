@@ -12,3 +12,11 @@ commit:     9ed7376299a15399624ebff4fcf8b8a162cd6c34
 subject:    Add .gitupstream file
 branch:     lineage-19.1-caf
 path:       hardware/qcom-caf/bootctrl
+
+system_vold.diff
+repository: https://github.com/TeamWin/android_system_vold
+commit:     a164ba05c5fef288059774a776b2e6e1119957cf
+date:       Sat Feb 22 19:47:29 2025 +0000
+subject:    Merge "vold: KeystoreInfo: Close /data/system/locksettings.db before exiting function Fixes the issue where the /data partition is in use during formatting/unmounting in some rare cases" into android-12.1
+branch:     android-12.1
+path:       system/vold

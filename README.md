@@ -32,6 +32,9 @@ carries the kernel modules of one LineageOS build (`lib/modules`, 221 modules). 
   image after an update: if the kernel changed, the modules no longer load and Android may not
   boot. Wait for a matching release or build one.
 - Keep a copy of your stock `vendor_boot` (see below) to go back.
+- Do not use Fix Contexts or other functions that relabel `/data`. The recovery's Android 12
+  SELinux library does not know the per-user levels of newer Android versions; this is why the
+  automatic `restorecon` in vold was removed (see [patches/](patches/README.md)).
 
 ## Installing
 
@@ -59,6 +62,15 @@ slot. They were written while updating the test device from lineage-24.0-2026101
 lineage-24.0-20261024 on slot a; the pictures are from that update.
 
 ### Before installing: patch-check
+
+The installed build is shown in Settings, System, Updater, or with root:
+
+```
+adb shell su -c "grep ro.lineage.version /product/etc/build.prop"
+```
+
+`getprop ro.lineage.version` may show a value changed by a spoofing module, and the `adb shell`
+user cannot read the file without root.
 
 ```
 powershell -ExecutionPolicy Bypass -File patch-check.ps1 -Zip <new LineageOS zip> -RecoveryImg <your OrangeFox .img | .zip>
@@ -256,8 +268,8 @@ same version too.
 
 1. Sync OrangeFox `fox_12.1` (see the OrangeFox wiki) into `<OrangeFox source tree>`.
 2. Clone this repository to `<OrangeFox source tree>/device/google/bramble`.
-3. Apply the two patches in [patches/](patches/README.md) (`bootable/recovery` and
-   `hardware/qcom-caf/bootctrl`).
+3. Apply the three patches in [patches/](patches/README.md) (`bootable/recovery`,
+   `hardware/qcom-caf/bootctrl` and `system/vold`).
 4. Optional: save the stock `vendor_boot` of your LineageOS build as
    `prebuilt/stock_vendor_boot.img`. OrangeFox then keeps its header and kernel command line and
    only replaces the ramdisk. Without it the image is built from this tree alone.
@@ -407,7 +419,10 @@ powershell -ExecutionPolicy Bypass -File recovery-inspect.ps1 -Img <OrangeFox .i
 ### release.sh
 
 Publishes the latest build as a GitHub release: image, zip, both scripts, `TEST-NOTES.md` and
-`SHA256SUMS`. It stops if `test-notes.md` is older than the image. `./release.sh r2` adds a suffix
+`SHA256SUMS`. It stops if `test-notes.md` is older than the image or does not name its SHA-256,
+if `bootable/recovery`, `hardware/qcom-caf/bootctrl` or `system/vold` no longer match the diffs in
+`patches/`, or if the device tree has uncommitted changes or a commit that is not on GitHub; the
+release tag is created on that commit. `./release.sh r2` adds a suffix
 for a second release on the same day; `FOX_TREE=<OrangeFox source tree> ./release.sh` if the build
 is not three folders above the device tree.
 
@@ -416,7 +431,8 @@ is not three folders above the device tree.
 Built with the work of TeamWin, OrangeFox, LineageOS and the sources listed in [NOTICE](NOTICE).
 
 - Files written for this repository: Apache License 2.0 ([LICENSE](LICENSE)).
-- Changes to OrangeFox/TWRP: GPL-3.0-or-later, in [patches/](patches/).
+- Changes to OrangeFox/TWRP: GPL-3.0-or-later; changes to TeamWin `android_system_vold`: Apache
+  License 2.0. Both in [patches/](patches/).
 - Prebuilt Google, Qualcomm and STMicroelectronics vendor files: not covered by either license.
 
 If you reuse parts of this tree, keep the NOTICE file and credit the sources it lists.

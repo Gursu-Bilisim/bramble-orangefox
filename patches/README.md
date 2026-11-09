@@ -1,6 +1,6 @@
 # Changes outside the device tree
 
-The releases of this repository are built from OrangeFox Recovery `fox_12.1` with two patches
+The releases of this repository are built from OrangeFox Recovery `fox_12.1` with three patches
 applied outside `device/google/bramble`. Base revisions are listed in `BASE_REVISION`.
 
 ## bootable_recovery.diff
@@ -8,16 +8,19 @@ applied outside `device/google/bramble`. Base revisions are listed in `BASE_REVI
 Applies to OrangeFox `bootable/recovery`, commit `cbcc4f713dbef98d76d6d2cfd019b1ebfd9418e9`.
 TWRP and OrangeFox are licensed under the GNU General Public License, version 3 or later, and so
 are these changes (see `COPYING`). The same source tree also builds
-[Gursu-Bilisim/tucana-orangefox](https://github.com/Gursu-Bilisim/tucana-orangefox) and
-[Gursu-Bilisim/jackpotlte-orangefox](https://github.com/Gursu-Bilisim/jackpotlte-orangefox), so the
-patch contains the changes made for those devices as well.
+[Gursu-Bilisim/tucana-orangefox](https://github.com/Gursu-Bilisim/tucana-orangefox),
+[Gursu-Bilisim/jackpotlte-orangefox](https://github.com/Gursu-Bilisim/jackpotlte-orangefox) and
+[Gursu-Bilisim/gts7xlwifi-orangefox](https://github.com/Gursu-Bilisim/gts7xlwifi-orangefox), so the
+patches contain the changes made for those devices as well.
 
 - `partitionmanager.cpp`: when the ROM's fstab is copied to `/etc/additional.fstab`,
   `/dev/block/bootdevice/by-name/` paths are rewritten to `/dev/block/by-name/`, so that `/data`
   is resolved to its block device and FBE is detected.
 - `partitionmanager.cpp`: before metadata decryption, `persist` is mounted read-only at
   `/mnt/vendor/persist` and `modem` read-only at `/vendor/firmware_mnt`, so that the QTI
-  keymaster and its listeners find their files. The modem partition name gets the slot suffix
+  keymaster and its listeners find their files. `persist` is only mounted when `/proc/mounts`
+  has nothing at `/mnt/vendor/persist` yet (on gts7xlwifi `init.recovery.qcom.rc` mounts it there,
+  and a second mount printed `ERROR: 1` in red). The modem partition name gets the slot suffix
   on A/B devices, and nothing is mounted when `/vendor/firmware_mnt/image` already exists
   (bramble mounts it from `init.recovery.bramble.rc`).
 - `gui/patternpassword.cpp`, `gui/objects.hpp`: `GUIPatternPassword::IsInRegion`. A dot accepts
@@ -42,6 +45,12 @@ patch contains the changes made for those devices as well.
   tucana).
 - Theme (`gui/theme/portrait_hdpi/themes/navbar.xml`): gesture navigation is off by default and
   the screen height no longer adds 96 px for a hidden navigation bar (made for tucana).
+- `minuitwrp/graphics.cpp`: `gr_blit()` clamps the drawn area to the size of the source surface
+  (made for gts7xlwifi, where `TW_ROTATION := 270` made the console overlay read past the end of
+  an image buffer and crash). Without rotation only pixels read from outside the image are lost.
+- `minuitwrp/graphics.cpp`, `minuitwrp/truetype.cpp`: the rotated copies of images and text are
+  allocated with two spare, zeroed rows (made for gts7xlwifi). Only used with `TW_ROTATION`;
+  bramble does not set it.
 
 ## hardware_qcom-caf_bootctrl.diff
 
@@ -53,6 +62,24 @@ Applies to LineageOS `android_hardware_qcom_bootctrl`, branch `lineage-19.1-caf`
   `/dev/block/bootdevice/by-name` entries that start with this name. The recovery creates a
   `boot -> boot_a` link there, so the HAL reported 3 slots and accepted slot number 2, while its
   suffix table only holds `_a` and `_b`. The name is used only in that count.
+
+## system_vold.diff
+
+Applies to TeamWin `android_system_vold`, branch `android-12.1`, commit
+`a164ba05c5fef288059774a776b2e6e1119957cf`, checked out at `system/vold`. vold is licensed under
+the Apache License 2.0, and so are these changes.
+
+- `FsCrypt.cpp`: no recursive `restorecon` over `system_ce`, `vendor_ce` and `misc_ce` after the
+  CE key is installed. The recovery's Android 12 `libselinux` does not know the per-user MLS level
+  that Android 14 and later give to `misc_ce/<user>/checkin` and `sdksandbox`, and relabelled them
+  to `s0`. On the next boot `vold_prepare_subdirs` could not relabel `checkin` (`relabelfrom`
+  denied). LineageOS 24 then deletes the directory and creates it again; LineageOS 23.2 left the
+  user's credential-encrypted storage unprepared (found on tucana). Android labels these paths
+  itself when the user is unlocked.
+- `Decrypt.cpp`: the gatekeeper is looked up as the `mdfpp` instance first, then as `default`
+  (made for gts7xlwifi, whose ROM verifies the lock screen credential in the QSEE MDFPP
+  gatekeeper). bramble has no `mdfpp` instance and keeps the old behaviour (`tryGetService` does
+  not wait).
 
 ## Applying
 
@@ -66,6 +93,10 @@ git clone -b lineage-19.1-caf https://github.com/LineageOS/android_hardware_qcom
 cd <OrangeFox source tree>/hardware/qcom-caf/bootctrl
 git checkout 9ed7376299a15399624ebff4fcf8b8a162cd6c34
 git apply <this repository>/patches/hardware_qcom-caf_bootctrl.diff
+
+cd <OrangeFox source tree>/system/vold
+git checkout a164ba05c5fef288059774a776b2e6e1119957cf
+git apply <this repository>/patches/system_vold.diff
 ```
 
 `navbar.xml` uses CRLF line endings upstream; the diff keeps them, so apply it without

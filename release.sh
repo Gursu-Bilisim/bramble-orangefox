@@ -15,12 +15,14 @@ if [ "$TREE/test-notes.md" -ot "$IMG" ]; then
 fi
 SHA=$(sha256sum "$IMG" | awk '{print $1}')
 grep -q "$SHA" "$TREE/test-notes.md" || { echo "test-notes.md does not name the image SHA-256 ($SHA)." >&2; exit 1; }
-# Both patches are diffs against the base commits in patches/BASE_REVISION.
+# The patches are diffs against the base commits in patches/BASE_REVISION.
 base() { awk -v f="$1" '$0==f{s=1} s&&/^commit:/{print $2; exit}' "$TREE/patches/BASE_REVISION"; }
 git -C "$FOX_TREE/bootable/recovery" diff "$(base bootable_recovery.diff)" | cmp -s - "$TREE/patches/bootable_recovery.diff" \
   || { echo "bootable/recovery differs from patches/bootable_recovery.diff; regenerate the patch first." >&2; exit 1; }
 git -C "$FOX_TREE/hardware/qcom-caf/bootctrl" diff "$(base hardware_qcom-caf_bootctrl.diff)" | cmp -s - "$TREE/patches/hardware_qcom-caf_bootctrl.diff" \
   || { echo "hardware/qcom-caf/bootctrl differs from patches/hardware_qcom-caf_bootctrl.diff; regenerate the patch first." >&2; exit 1; }
+git -C "$FOX_TREE/system/vold" diff "$(base system_vold.diff)" | cmp -s - "$TREE/patches/system_vold.diff" \
+  || { echo "system/vold differs from patches/system_vold.diff; regenerate the patch first." >&2; exit 1; }
 REPO=Gursu-Bilisim/bramble-orangefox
 
 # The release tag must point at the device tree the image was built from. gh creates a missing

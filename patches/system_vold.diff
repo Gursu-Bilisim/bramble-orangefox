@@ -1,0 +1,64 @@
+diff --git a/Decrypt.cpp b/Decrypt.cpp
+index d9f034b..0ae061a 100755
+--- a/Decrypt.cpp
++++ b/Decrypt.cpp
+@@ -601,6 +601,17 @@ userid_t fakeUid(const userid_t uid) {
+     return 100000 + uid;
+ }
+ 
++// Samsung devices with an MDFPP (QSEE) gatekeeper register it as the "mdfpp"
++// instance, and Android verifies the credential there. The "default" instance
++// can take another path (for example the SPU on SM8250) and reject the same
++// credential. Prefer "mdfpp" when it is present, otherwise use "default".
++static android::sp<android::hardware::gatekeeper::V1_0::IGatekeeper> getGatekeeperService() {
++	auto gk = ::android::hardware::gatekeeper::V1_0::IGatekeeper::tryGetService("mdfpp");
++	if (gk == nullptr)
++		gk = ::android::hardware::gatekeeper::V1_0::IGatekeeper::getService();
++	return gk;
++}
++
+ bool Is_Weaver(const std::string& spblob_path, const std::string& handle_str) {
+ 	printf("Is_Weaver\n");
+ 	std::string weaver_file = spblob_path + handle_str + ".weaver";
+@@ -752,7 +763,7 @@ bool Decrypt_User_Synth_Pass(const userid_t user_id, const std::string& Password
+ 			int ret = -1;
+ 			bool request_reenroll = false;
+ 			android::sp<android::hardware::gatekeeper::V1_0::IGatekeeper> gk_device;
+-			gk_device = ::android::hardware::gatekeeper::V1_0::IGatekeeper::getService();
++			gk_device = getGatekeeperService();
+ 			if (gk_device == nullptr) {
+ 				printf("failed to get gatekeeper service\n");
+ 				return Free_Return(retval, weaver_key, &pwd);
+@@ -922,7 +933,7 @@ extern "C" bool Decrypt_User(const userid_t user_id, const std::string& Password
+     bool should_reenroll;
+ 	bool request_reenroll = false;
+ 	android::sp<android::hardware::gatekeeper::V1_0::IGatekeeper> gk_device;
+-	gk_device = ::android::hardware::gatekeeper::V1_0::IGatekeeper::getService();
++	gk_device = getGatekeeperService();
+ 	if (gk_device == nullptr)
+ 		return false;
+ 	android::hardware::hidl_vec<uint8_t> curPwdHandle;
+diff --git a/FsCrypt.cpp b/FsCrypt.cpp
+index 7505e56..9373ec1 100644
+--- a/FsCrypt.cpp
++++ b/FsCrypt.cpp
+@@ -913,14 +913,11 @@ bool fscrypt_prepare_user_storage(const std::string& volume_uuid, userid_t user_
+             if (!EnsurePolicy(ce_policy, user_ce_path)) return false;
+         }
+ 
+-        if (volume_uuid.empty()) {
+-            // Now that credentials have been installed, we can run restorecon
+-            // over these paths
+-            // NOTE: these paths need to be kept in sync with libselinux
+-            android::vold::RestoreconRecursive(system_ce_path);
+-            android::vold::RestoreconRecursive(vendor_ce_path);
+-            android::vold::RestoreconRecursive(misc_ce_path);
+-        }
++        // Recovery: no restorecon over system_ce, vendor_ce and misc_ce here.
++        // The recovery libselinux does not know the per-user MLS level that
++        // newer Android versions give to directories such as
++        // misc_ce/<user>/checkin and sdksandbox, and would relabel them to s0.
++        // Android relabels these paths itself when the user is unlocked.
+     }
+     if (!prepare_subdirs("prepare", volume_uuid, user_id, flags)) return false;
+ 

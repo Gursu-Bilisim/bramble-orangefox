@@ -89,7 +89,11 @@ authors and licenses:
   JoshuaDoes twrp_device_google_bramble and twrp_device_google_redbull,
   branch android-11, consulted for TWRP build flags.
 
-* OrangeFox Recovery / TWRP
+* OrangeFox Recovery / TWRP / TeamWin android_system_vold
   The recovery is built from OrangeFox fox_12.1 (based on TWRP), licensed
-  under GPL-3.0-or-later. Our changes to it are published in patches/ under
-  the same license.
+  under GPL-3.0-or-later, with TeamWin android_system_vold (Apache License
+  2.0). Our changes are published in patches/: bootable_recovery.diff under
+  GPL-3.0-or-later (patches/COPYING), system_vold.diff under the Apache
+  License 2.0. The same source tree also builds the tucana, jackpotlte and
+  gts7xlwifi recoveries of Gursu-Bilisim, so the patches include the changes
+  made for those devices. See patches/README.md.
